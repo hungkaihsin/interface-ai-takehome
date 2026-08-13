@@ -109,7 +109,7 @@ Getting this three-way split right is worth more than any extra feature.
 
 ## 6. What exists right now
 
-**Built and verified — `target_app/`, the fake bank system.**
+**The fake bank system — `target_app/`.**
 
 This is the thing being automated, not the automation. It's a Flask app
 impersonating a legacy back-office console, and it is *deliberately unpleasant*:
@@ -158,17 +158,37 @@ Tier 2 is the interesting one. A CSS selector like `table tr:nth-child(2) input`
 breaks the moment somebody inserts a row. "The input in the row labelled Nickname"
 survives that, because it's anchored to *meaning* rather than *position*.
 
-## 7. Still to build
+## 7. Status — all of it is now built
 
-1. **Artifact schema** — the saved-recipe format. Graded hardest, so it gets
-   argued before it gets written.
-2. **Perception + action layer** — turn a screen into a description the model can
-   read; carry out what it picks.
-3. **Discovery loop** — Gemini driving the app for real. *Cannot be faked.*
-4. **Replay engine** — run the recipe with no model, with the three-bucket result contract.
-5. **Safety layer** — allowlist, irreversible-action handling, redaction.
-6. **Escalation + handoff** — pause, hand the live session to a human, resume.
-7. **Evidence, `README.md`, `REPORT.md`.**
+Every core requirement is implemented and evidenced. `README.md` has the commands;
+this is the map of what ended up where.
+
+| Piece | Where | What it does |
+|---|---|---|
+| Artifact schema | `capability/` | The recipe format. Graded hardest, so it was argued before it was written. |
+| Perception + action | `surface/` | Turns a screen into text the model reads; carries out what it picks. Only `web.py` knows browsers exist. |
+| Discovery loop | `discovery/` | Gemini driving the app for real. The one thing that couldn't be faked. |
+| Replay engine | `replay/engine.py` | Runs the recipe with no model, sorting every result into the three buckets. |
+| Safety | throughout | Allowlist, safe-vs-risky gating, redaction before anything is written down. |
+| Escalation | `replay/escalation.py` | Pause, hand the live session to a human, resume, record what they did. |
+| Evidence | `evidence/` | A discovery run, replays of every condition, a failure with a screenshot, a handoff. |
+
+**Three things went wrong during the build that are worth knowing**, because they
+are the best material you have for a conversation about this work:
+
+1. **"Frame was detached."** Reloading the page destroys and rebuilds the iframes;
+   the code was holding a stale reference. Fix: wait for a *live* frame.
+2. **Checking the screen too fast.** After clicking Search, the code asked "is this
+   not-found?" before the page had loaded. It passed *sometimes* — flaky, which is
+   worse than broken. Fix: never look once; poll until the screen settles.
+3. **The model overfitted.** Asked to read a balance of `18432.19`, Gemini targeted
+   the cell **by that value**. That works forever for the member it was recorded on
+   and fails for everyone else. Fixed structurally in `discovery/recorder.py`, and
+   caught independently by replaying the fresh recipe with a *different* member.
+
+That third one is the most interesting thing in the project. It is the difference
+between "the model produced something" and "the model produced something that
+generalises," and nothing but a second input can tell them apart.
 
 ---
 
