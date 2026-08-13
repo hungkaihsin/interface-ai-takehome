@@ -1,0 +1,76 @@
+"""Structured run logging -- requirement 3.5.
+
+One JSONL file per run. Each line is one event with a timestamp, a type, and a
+payload. JSONL rather than prose because the log is meant to be *queried* ("show
+me every run of this capability that hit PERMISSION_DENIED last week"), and prose
+logs answer that question only by grep and luck.
+
+Every value written passes through the run's `Redactor` first. That is the whole
+reason the writer owns redaction rather than the caller: there is exactly one
+function in the system through which log data becomes durable, so there is exactly
+one place to get this right.
+
+The run id is generated once and shared by the log file, any screenshots, and the
+returned result, so a caller holding a result can find its evidence without a
+search.
+"""
+
+from __future__ import annotations
+
+import json
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from .redaction import Redactor
+
+
+def new_run_id(prefix: str) -> str:
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"{prefix}-{stamp}-{uuid.uuid4().hex[:6]}"
+
+
+class RunLog:
+    """Append-only structured log for a single run."""
+
+    def __init__(
+        self,
+        run_id: str,
+        directory: str | Path = "evidence",
+        redactor: Redactor | None = None,
+        echo: bool = False,
+    ) -> None:
+        self.run_id = run_id
+        self.directory = Path(directory)
+        self.directory.mkdir(parents=True, exist_ok=True)
+        self.path = self.directory / f"{run_id}.jsonl"
+        self.redactor = redactor or Redactor()
+        self.echo = echo
+        self._events: list[dict[str, Any]] = []
+
+    def event(self, type_: str, **payload: Any) -> dict[str, Any]:
+        record = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "run_id": self.run_id,
+            "type": type_,
+            **self.redactor.value(payload),
+        }
+        self._events.append(record)
+        with self.path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, default=str) + "\n")
+        if self.echo:
+            print(f"  [{type_}] " + _summarise(record))
+        return record
+
+    @property
+    def events(self) -> list[dict[str, Any]]:
+        return list(self._events)
+
+
+def _summarise(record: dict[str, Any]) -> str:
+    """A one-line human rendering for console echo."""
+    skip = {"ts", "run_id", "type"}
+    bits = [f"{k}={v}" for k, v in record.items() if k not in skip]
+    line = " ".join(bits)
+    return line if len(line) <= 160 else line[:157] + "..."

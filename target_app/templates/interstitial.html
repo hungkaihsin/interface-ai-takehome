@@ -1,0 +1,25 @@
+{% extends "_base.html" %}
+{% block title %} - Notice{% endblock %}
+{% block body %}
+{# A modal-style interstitial that appears between the search and the record.
+   It is a *recoverable* condition: the known remedy is to acknowledge it and
+   carry on to the same destination. Replay has to notice it is not on the page
+   it expected and apply that remedy, rather than asserting a checkpoint against
+   a screen that never loaded. #}
+<table width="100%" height="100%" cellpadding="0" cellspacing="0">
+ <tr><td align="center" valign="middle">
+  <table class="box" cellpadding="0" cellspacing="0" width="420">
+   <tr><td class="hdr">System Notice</td></tr>
+   <tr><td style="padding:14px">
+     <p><b>Scheduled maintenance window</b></p>
+     <p>Core banking services will be unavailable Sunday 02:00&ndash;04:00 Pacific.
+        Batch postings may be delayed. This notice requires acknowledgement before
+        member records can be displayed.</p>
+     <form method="post" action="/interstitial/{{ member_id }}/dismiss">
+       <input type="submit" class="btn" value="Acknowledge">
+     </form>
+   </td></tr>
+  </table>
+ </td></tr>
+</table>
+{% endblock %}

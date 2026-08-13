@@ -1,0 +1,43 @@
+{% extends "_base.html" %}
+{% block title %} - Sign On{% endblock %}
+{% block body %}
+{# The login form is the one place with proper <label for> bindings, so the
+   accessible-name path works cleanly here. The sub-account form deliberately
+   does not -- see subaccount_new.html. #}
+<table width="100%" height="100%" cellpadding="0" cellspacing="0">
+ <tr><td align="center" valign="middle">
+  <table class="box" cellpadding="0" cellspacing="0" width="360">
+   <tr><td class="hdr" colspan="2">MeridianCU &mdash; Operator Sign On</td></tr>
+   <tr><td colspan="2" style="padding:12px">
+     {% if expired %}
+       <p class="warn">Your session has expired. Please sign on again.</p>
+     {% endif %}
+     {% if error %}
+       <p class="warn">{{ error }}</p>
+     {% endif %}
+     <form method="post" action="/login">
+      <table cellpadding="4" cellspacing="0">
+       <tr>
+         <td class="lbl"><label for="uid">Operator ID</label></td>
+         <td><input type="text" id="uid" name="username" size="22"></td>
+       </tr>
+       <tr>
+         <td class="lbl"><label for="pwd">Password</label></td>
+         <td><input type="password" id="pwd" name="password" size="22"></td>
+       </tr>
+       <tr>
+         <td></td>
+         <td><input type="submit" class="btn" value="Sign On"></td>
+       </tr>
+      </table>
+     </form>
+     <hr>
+     <font size="1" color="#555555">
+       Test environment. Synthetic data only.<br>
+       Operator ID <b>operator</b> / password <b>letmein</b>.
+     </font>
+   </td></tr>
+  </table>
+ </td></tr>
+</table>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "_base.html" %}
+{% block title %} - Access Denied{% endblock %}
+{% block body %}
+{# A permission denial. This is an *expected business outcome*, not a crash: the
+   record exists, the operator simply may not see it, and the caller needs to be
+   told that specifically. Replay must report it as an outcome rather than
+   retrying or raising. #}
+<table width="100%" cellpadding="0" cellspacing="0">
+ <tr><td class="hdr">Access Denied</td></tr>
+</table>
+<div style="padding:14px">
+ <table class="box" cellpadding="10" cellspacing="0">
+  <tr><td>
+    <p class="warn">Entitlement check failed.</p>
+    <p>Member record <b>{{ member_id }}</b> is flagged <b>RESTRICTED</b>. Your
+       operator profile does not carry the <i>EXEC-VIEW</i> entitlement required
+       to display this record.</p>
+    <p><font size="1">Reference: ENT-403. Contact your security administrator to
+       request access.</font></p>
+  </td></tr>
+ </table>
+</div>
+{% endblock %}

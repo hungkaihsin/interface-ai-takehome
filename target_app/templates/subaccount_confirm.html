@@ -1,0 +1,28 @@
+{% extends "_base.html" %}
+{% block title %} - Sub-Account Opened{% endblock %}
+{% block body %}
+{# The confirmation screen. This is the natural checkpoint for the sub-account
+   capability: reaching it is the only proof the irreversible action actually
+   committed, and the new account number is the output the caller wants back. #}
+<table width="100%" cellpadding="0" cellspacing="0">
+ <tr><td class="hdr">Sub-Account Opened</td></tr>
+</table>
+<div style="padding:14px">
+ <table class="box" cellpadding="0" cellspacing="1">
+  <tr><td class="lbl">Member</td>
+      <td class="val">{{ member.member_id }} &mdash; {{ member.full_name }}</td></tr>
+  <tr><td class="lbl">New Account Number</td>
+      <td class="val"><b>{{ account.account_number }}</b></td></tr>
+  <tr><td class="lbl">Product</td><td class="val">{{ product }}</td></tr>
+  <tr><td class="lbl">Nickname</td><td class="val">{{ nickname }}</td></tr>
+  <tr><td class="lbl">Opening Balance</td>
+      <td class="val">{{ "%.2f"|format(account.balance) }}</td></tr>
+  <tr><td class="lbl">Opened</td><td class="val">{{ account.opened }}</td></tr>
+ </table>
+ <br>
+ <p><b>The account is open and available immediately.</b></p>
+ <form method="get" action="/member/{{ member.member_id }}">
+   <input type="submit" class="btn" value="Return to Member Record">
+ </form>
+</div>
+{% endblock %}

@@ -1,0 +1,311 @@
+{
+  "schema_version": "1.0",
+  "capability_id": "member_savings_lookup",
+  "version": 1,
+  "name": "Look up a member's savings balance",
+  "description": "Given a member number, open that member's record in the MeridianCU back-office console and return the current balance of their primary savings account.",
+  "surface": {
+    "kind": "web",
+    "app_id": "meridian-backoffice-v4",
+    "tenant_id": "meridian-cu",
+    "entry_url": "http://127.0.0.1:5001/shell"
+  },
+  "inputs": [
+    {
+      "name": "member_id",
+      "type": "string",
+      "description": "The member number as printed on the member's card.",
+      "required": true,
+      "pattern": "^\\d{5}$",
+      "example": "10001",
+      "sensitive": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "savings_balance",
+      "type": "money",
+      "description": "Current balance of the member's primary savings account.",
+      "source": {
+        "locator": {
+          "frame_path": [
+            "main"
+          ],
+          "strategies": [
+            {
+              "kind": "role_in_container",
+              "role": "cell",
+              "container": {
+                "role": "row",
+                "name": "SAVINGS",
+                "name_match": "contains",
+                "index": 0
+              },
+              "index": 2
+            }
+          ],
+          "describes": "the Current Balance cell of the SAVINGS row"
+        },
+        "transform": [
+          {
+            "kind": "strip",
+            "pattern": null
+          },
+          {
+            "kind": "to_number",
+            "pattern": null
+          }
+        ]
+      },
+      "required": true,
+      "sensitive": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "intent": "Open the back-office console, which lands on member inquiry.",
+      "action": {
+        "kind": "navigate",
+        "url": "http://127.0.0.1:5001/shell"
+      },
+      "risk": "safe",
+      "checkpoint": {
+        "condition": {
+          "kind": "element_present",
+          "locator": {
+            "frame_path": [
+              "main"
+            ],
+            "strategies": [
+              {
+                "kind": "role_name",
+                "role": "textbox",
+                "name": "Member Number",
+                "name_match": "exact"
+              },
+              {
+                "kind": "role_in_container",
+                "role": "textbox",
+                "container": {
+                  "role": "row",
+                  "name": "Member Number",
+                  "name_match": "contains",
+                  "index": null
+                },
+                "index": null
+              }
+            ],
+            "describes": "the Member Number input on the inquiry screen"
+          }
+        },
+        "description": "The inquiry form is on screen.",
+        "timeout_ms": 5000
+      }
+    },
+    {
+      "id": "s2",
+      "intent": "Type the member number into the Member Number field.",
+      "action": {
+        "kind": "fill",
+        "target": {
+          "frame_path": [
+            "main"
+          ],
+          "strategies": [
+            {
+              "kind": "role_name",
+              "role": "textbox",
+              "name": "Member Number",
+              "name_match": "exact"
+            },
+            {
+              "kind": "role_in_container",
+              "role": "textbox",
+              "container": {
+                "role": "row",
+                "name": "Member Number",
+                "name_match": "contains",
+                "index": null
+              },
+              "index": null
+            }
+          ],
+          "describes": "the Member Number input on the inquiry screen"
+        },
+        "value": "{{ member_id }}"
+      },
+      "risk": "safe",
+      "checkpoint": null
+    },
+    {
+      "id": "s3",
+      "intent": "Submit the search.",
+      "action": {
+        "kind": "click",
+        "target": {
+          "frame_path": [
+            "main"
+          ],
+          "strategies": [
+            {
+              "kind": "role_name",
+              "role": "button",
+              "name": "Search",
+              "name_match": "exact"
+            }
+          ],
+          "describes": "the Search button on the inquiry screen"
+        }
+      },
+      "risk": "safe",
+      "checkpoint": null
+    }
+  ],
+  "success": {
+    "condition": {
+      "kind": "element_present",
+      "locator": {
+        "frame_path": [
+          "main"
+        ],
+        "strategies": [
+          {
+            "kind": "role_in_container",
+            "role": "cell",
+            "container": {
+              "role": "row",
+              "name": "SAVINGS",
+              "name_match": "contains",
+              "index": 0
+            },
+            "index": 2
+          }
+        ],
+        "describes": "the Current Balance cell of the SAVINGS row"
+      }
+    },
+    "description": "The member record is displayed and shows a SAVINGS row.",
+    "timeout_ms": 10000
+  },
+  "business_outcomes": [
+    {
+      "code": "MEMBER_NOT_FOUND",
+      "detect": {
+        "kind": "text_present",
+        "frame_path": [
+          "main"
+        ],
+        "text": "No member found",
+        "match": "contains",
+        "scope": "frame"
+      },
+      "description": "No member exists with that number. A legitimate answer for the caller, not a failure.",
+      "terminal": true
+    },
+    {
+      "code": "PERMISSION_DENIED",
+      "detect": {
+        "kind": "text_present",
+        "frame_path": [
+          "main"
+        ],
+        "text": "Entitlement check failed",
+        "match": "contains",
+        "scope": "frame"
+      },
+      "description": "The record exists but this operator profile may not view it. The caller needs to know this specifically, so it can route the request to someone entitled.",
+      "terminal": true
+    }
+  ],
+  "recoverables": [
+    {
+      "code": "MAINTENANCE_INTERSTITIAL",
+      "detect": {
+        "kind": "text_present",
+        "frame_path": [
+          "main"
+        ],
+        "text": "Scheduled maintenance window",
+        "match": "contains",
+        "scope": "frame"
+      },
+      "description": "A maintenance notice can appear between the search and the record. Acknowledging it continues to the same destination.",
+      "remedy": [
+        {
+          "id": "r1",
+          "intent": "Acknowledge the maintenance notice.",
+          "action": {
+            "kind": "click",
+            "target": {
+              "frame_path": [
+                "main"
+              ],
+              "strategies": [
+                {
+                  "kind": "role_name",
+                  "role": "button",
+                  "name": "Acknowledge",
+                  "name_match": "exact"
+                }
+              ],
+              "describes": "the Acknowledge button on the notice"
+            }
+          },
+          "risk": "safe",
+          "checkpoint": null
+        }
+      ],
+      "max_attempts": 2,
+      "reestablish_session": false
+    },
+    {
+      "code": "SESSION_EXPIRED",
+      "detect": {
+        "kind": "text_present",
+        "frame_path": [],
+        "text": "Your session has expired",
+        "match": "contains",
+        "scope": "frame"
+      },
+      "description": "The operator session timed out mid-flow. Signing on again and retrying the step is the standard remedy; if it recurs, the run escalates rather than looping.",
+      "remedy": [
+        {
+          "id": "r2",
+          "intent": "Sign back on as the automation operator.",
+          "action": {
+            "kind": "navigate",
+            "url": "http://127.0.0.1:5001/login"
+          },
+          "risk": "safe",
+          "checkpoint": null
+        }
+      ],
+      "max_attempts": 1,
+      "reestablish_session": false
+    }
+  ],
+  "policy": {
+    "allowed_origins": [
+      "http://127.0.0.1:5001"
+    ],
+    "allowed_actions": [
+      "navigate",
+      "click",
+      "fill",
+      "select",
+      "press",
+      "wait_for"
+    ],
+    "has_irreversible_steps": false,
+    "approved_for_unattended": true
+  },
+  "provenance": {
+    "discovered_at": "2026-08-13T08:29:11.827389Z",
+    "model": "hand-authored",
+    "discovery_run_id": "seed-0001",
+    "llm_turns": 0,
+    "notes": "Hand-written seed artifact used to develop and test the replay engine before the discovery loop existed. The discovery run emits this same schema."
+  },
+  "extends": null
+}

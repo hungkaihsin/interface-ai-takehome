@@ -1,0 +1,25 @@
+{# Legacy chrome. Deliberately uses table layout, bgcolor attributes and <font>
+   tags -- the markup carries appearance, never meaning. There are no class names
+   worth selecting on and no test IDs anywhere in this app. #}
+<html>
+<head>
+  <title>MeridianCU Back-Office{% block title %}{% endblock %}</title>
+  <style>
+    body { font-family: Verdana, Geneva, sans-serif; font-size: 11px;
+           background: #d4d0c8; margin: 0; padding: 0; }
+    table { border-collapse: collapse; font-size: 11px; }
+    .hdr { background: #14375c; color: #ffffff; font-weight: bold; padding: 4px 8px; }
+    .box { border: 2px inset #ffffff; background: #f0efe9; }
+    .lbl { background: #c8c4bc; padding: 3px 6px; white-space: nowrap; }
+    .val { padding: 3px 6px; background: #ffffff; }
+    .btn { font-family: Verdana; font-size: 11px; border: 2px outset #ffffff;
+           background: #d4d0c8; padding: 2px 10px; }
+    input[type=text], input[type=password], select {
+           font-family: Verdana; font-size: 11px; border: 1px solid #7f7f7f; }
+    .warn { color: #8b0000; font-weight: bold; }
+  </style>
+</head>
+<body>
+{% block body %}{% endblock %}
+</body>
+</html>

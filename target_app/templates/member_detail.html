@@ -1,0 +1,74 @@
+{% extends "_base.html" %}
+{% block title %} - Member {{ member.member_id }}{% endblock %}
+{% block body %}
+<table width="100%" cellpadding="0" cellspacing="0">
+ <tr><td class="hdr">Member Record &mdash; {{ member.member_id }}</td></tr>
+</table>
+<div style="padding:10px">
+
+ {# Demographics. The SSN and full account numbers are rendered in the clear, as
+    a real back-office screen would. Anything that scrapes this page will pick
+    them up, which is precisely why redaction has to happen before an observation
+    is ever written to an artifact or a log. #}
+ <table class="box" cellpadding="0" cellspacing="1" width="100%">
+  <tr>
+    <td class="lbl">Name</td><td class="val">{{ member.full_name }}</td>
+    <td class="lbl">Status</td><td class="val">{{ member.status }}</td>
+  </tr>
+  <tr>
+    <td class="lbl">SSN</td><td class="val">{{ member.ssn }}</td>
+    <td class="lbl">Member Since</td><td class="val">{{ member.joined }}</td>
+  </tr>
+  <tr>
+    <td class="lbl">Telephone</td><td class="val">{{ member.phone }}</td>
+    <td class="lbl">Home Branch</td><td class="val">{{ member.branch }}</td>
+  </tr>
+  <tr>
+    <td class="lbl">E-Mail</td><td class="val" colspan="3">{{ member.email }}</td>
+  </tr>
+ </table>
+
+ <br>
+
+ {# The balance the demo goal asks for lives in this table. Note there is nothing
+    to select on: no id, no class, no data attribute. The only durable handle is
+    the row's relationship to the text "SAVINGS" and the column's relationship to
+    the "Current Balance" header. #}
+ <table class="box" cellpadding="0" cellspacing="1" width="100%">
+  <tr><td class="hdr" colspan="5">Share Accounts</td></tr>
+  <tr>
+    <td class="lbl">Account Number</td>
+    <td class="lbl">Type</td>
+    <td class="lbl">Current Balance</td>
+    <td class="lbl">Opened</td>
+    <td class="lbl">Status</td>
+  </tr>
+  {% for a in accounts %}
+  <tr>
+    <td class="val">{{ a.account_number }}</td>
+    <td class="val">{{ a.kind }}</td>
+    <td class="val" align="right">{{ "%.2f"|format(a.balance) }}</td>
+    <td class="val">{{ a.opened }}</td>
+    <td class="val">{{ a.status }}</td>
+  </tr>
+  {% endfor %}
+ </table>
+
+ <br>
+ <table cellpadding="0" cellspacing="0">
+  <tr>
+   <td>
+     <form method="get" action="/member/{{ member.member_id }}/subaccount/new">
+       <input type="submit" class="btn" value="Open Sub-Account">
+     </form>
+   </td>
+   <td style="padding-left:8px">
+     <form method="get" action="/search">
+       <input type="submit" class="btn" value="Back to Inquiry">
+     </form>
+   </td>
+  </tr>
+ </table>
+
+</div>
+{% endblock %}

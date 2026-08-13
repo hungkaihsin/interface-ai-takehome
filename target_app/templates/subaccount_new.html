@@ -1,0 +1,68 @@
+{% extends "_base.html" %}
+{% block title %} - Open Sub-Account{% endblock %}
+{% block body %}
+<table width="100%" cellpadding="0" cellspacing="0">
+ <tr><td class="hdr">Open Sub-Account &mdash; Member {{ member.member_id }}</td></tr>
+</table>
+<div style="padding:10px">
+
+ {# Deliberately degraded labelling. These inputs have *no* <label for> binding --
+    the text to their left is a plain table cell that happens to sit next to them.
+    In the accessibility tree they therefore surface as unnamed textboxes, which is
+    exactly what legacy enterprise forms look like. This is the case that forces a
+    fallback beyond role+name: the durable handle here is the input's position
+    relative to the cell containing the caption text. #}
+ <form method="post" action="/member/{{ member.member_id }}/subaccount/new">
+  <table class="box" cellpadding="6" cellspacing="1">
+   <tr>
+     <td class="lbl">Product</td>
+     <td class="val">
+       <select name="product_code">
+         <option value="">-- select --</option>
+         {% for code, label in products.items() %}
+           <option value="{{ code }}"
+             {% if submitted and submitted.get('product_code') == code %}selected{% endif %}
+           >{{ label }}</option>
+         {% endfor %}
+       </select>
+       {% if errors.get('product_code') %}
+         <font class="warn"> {{ errors['product_code'] }}</font>
+       {% endif %}
+     </td>
+   </tr>
+   <tr>
+     <td class="lbl">Nickname</td>
+     <td class="val">
+       <input type="text" name="nickname" size="26" maxlength="40"
+              value="{{ submitted.get('nickname', '') if submitted else '' }}">
+       {% if errors.get('nickname') %}
+         <font class="warn"> {{ errors['nickname'] }}</font>
+       {% endif %}
+     </td>
+   </tr>
+   <tr>
+     <td class="lbl">Initial Deposit</td>
+     <td class="val">
+       <input type="text" name="initial_deposit" size="12"
+              value="{{ submitted.get('initial_deposit', '') if submitted else '' }}">
+       {% if errors.get('initial_deposit') %}
+         <font class="warn"> {{ errors['initial_deposit'] }}</font>
+       {% endif %}
+     </td>
+   </tr>
+   <tr>
+     <td></td>
+     <td class="val">
+       <input type="submit" class="btn" value="Open Account">
+     </td>
+   </tr>
+  </table>
+ </form>
+
+ <br>
+ <font size="1" color="#555555">
+   Opening an account is immediate and cannot be reversed from this screen.
+   Minimum opening deposit $25.00.
+ </font>
+</div>
+{% endblock %}

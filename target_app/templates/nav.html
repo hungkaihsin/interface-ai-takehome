@@ -1,0 +1,16 @@
+{% extends "_base.html" %}
+{% block body %}
+{# Links target the "main" frame by name, the way a 2003 intranet app would. #}
+<table width="100%" cellpadding="0" cellspacing="0">
+ <tr><td class="hdr">Functions</td></tr>
+ <tr><td style="padding:6px">
+   <a href="/search" target="main">Member Inquiry</a><br><br>
+   <a href="/search" target="main">Account Servicing</a><br><br>
+   <font color="#888888">Transfers</font><br><br>
+   <font color="#888888">Card Services</font><br><br>
+   <font color="#888888">Reports</font><br><br>
+   <hr>
+   <a href="/logout" target="_top">Sign Off</a>
+ </td></tr>
+</table>
+{% endblock %}

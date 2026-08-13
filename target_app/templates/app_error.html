@@ -1,0 +1,20 @@
+{% extends "_base.html" %}
+{% block title %} - System Error{% endblock %}
+{% block body %}
+{# An unhandled application error. This is the *hard failure* arm: nothing the
+   automation can do recovers it, and proceeding would be unsafe. Replay should
+   stop here and surface what step it was on, what it expected, and what it saw. #}
+<table width="100%" cellpadding="0" cellspacing="0">
+ <tr><td class="hdr" style="background:#8b0000">System Error</td></tr>
+</table>
+<div style="padding:14px">
+ <table class="box" cellpadding="10" cellspacing="0">
+  <tr><td>
+    <p class="warn">An unexpected error occurred while processing your request.</p>
+    <p>The transaction has been rolled back. No changes were saved.</p>
+    <p><font size="1">Reference: SYS-500 / CORE-LINK. If this persists, contact the
+       service desk with the time of the error.</font></p>
+  </td></tr>
+ </table>
+</div>
+{% endblock %}

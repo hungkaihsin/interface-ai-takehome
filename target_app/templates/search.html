@@ -1,0 +1,39 @@
+{% extends "_base.html" %}
+{% block title %} - Member Inquiry{% endblock %}
+{% block body %}
+<table width="100%" cellpadding="0" cellspacing="0">
+ <tr><td class="hdr">Member Inquiry</td></tr>
+</table>
+<div style="padding:10px">
+ <form method="post" action="/search">
+  <table class="box" cellpadding="6" cellspacing="0">
+   <tr>
+     <td class="lbl"><label for="mno">Member Number</label></td>
+     <td><input type="text" id="mno" name="member_id" size="14" maxlength="8"></td>
+     <td><input type="submit" class="btn" value="Search"></td>
+   </tr>
+  </table>
+ </form>
+
+ {% if validation_error %}
+   <p class="warn">{{ validation_error }}</p>
+ {% endif %}
+
+ {% if searched and not result and queried_id %}
+   {# A "no such member" answer is a normal result screen with an HTTP 200.
+      The caller needs this outcome; it is not an error. #}
+   <table class="box" cellpadding="8" cellspacing="0" style="margin-top:14px">
+    <tr><td>
+      <b>No member found for number {{ queried_id }}.</b><br><br>
+      <font size="1">Check the number and try again, or search by name at a branch
+      terminal.</font>
+    </td></tr>
+   </table>
+ {% endif %}
+
+ <br>
+ <font size="1" color="#555555">
+   Test data: 10001, 10002, 10003 are ordinary records.
+ </font>
+</div>
+{% endblock %}
