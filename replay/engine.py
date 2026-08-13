@@ -261,12 +261,19 @@ class ReplayEngine:
             if verdict == "success":
                 return self._extract_outputs(state)
 
-            return state.fail(
-                FailureKind.CHECKPOINT_FAILED,
-                expected=artifact.success.description,
-                observed=self._describe_screen(state),
-                step_id=artifact.steps[-1].id if artifact.steps else None,
-                screenshot=self._capture(state.run_id, "success-checkpoint-failed"),
+            # The surface settled into something this capability does not
+            # recognise. That is the definition of stuck, so a human is offered
+            # the run before it is declared a failure -- an artifact recorded
+            # before anyone had seen a given screen is exactly the case where a
+            # person can finish what the automation cannot.
+            return self._escalate_or_fail(
+                state,
+                artifact.steps[-1] if artifact.steps else None,
+                reason=(
+                    f"expected {artifact.success.description!r} but the screen is "
+                    "not a state this capability declares"
+                ),
+                kind=FailureKind.UNKNOWN_STATE,
             )
 
     # -- one step ----------------------------------------------------------
@@ -511,9 +518,15 @@ class ReplayEngine:
         )
 
     def _escalate_or_fail(
-        self, state: "_RunState", step: Step, reason: str, kind: FailureKind
+        self, state: "_RunState", step: Step | None, reason: str, kind: FailureKind
     ) -> ReplayResult:
-        """Try a human before giving up. The bridge into requirement 3.6."""
+        """Try a human before giving up. The bridge into requirement 3.6.
+
+        Escalation is offered, never assumed: with no console configured this is
+        an ordinary failure. That keeps unattended replay -- the production path --
+        free of any dependency on somebody being awake.
+        """
+        step_id = step.id if step is not None else None
         if self.escalation is not None:
             from .escalation import InterventionRequest
 
@@ -521,13 +534,21 @@ class ReplayEngine:
                 run_id=state.run_id,
                 capability_id=state.artifact.capability_id,
                 goal=state.artifact.description,
-                step_id=step.id,
-                step_intent=step.intent,
+                step_id=step_id,
+                step_intent=step.intent if step is not None else None,
                 reason=reason,
-                screenshot_path=self._capture(state.run_id, f"{step.id}-stuck"),
+                screenshot_path=self._capture(
+                    state.run_id, f"{step_id or 'final'}-stuck"
+                ),
                 perception=self._describe_screen(state),
             )
-            state.log.event("escalation.raised", step=step.id, reason=reason)
+            state.log.event("escalation.raised", step=step_id, reason=reason)
+            # Lend the console this run's log so the control transfer itself is
+            # recorded in the same evidence file as the automation's own steps.
+            # A handoff written to a different sink would make the one moment the
+            # run changed hands the one moment the evidence is silent about.
+            if getattr(self.escalation, "log", "missing") is None:
+                self.escalation.log = state.log  # type: ignore[attr-defined]
             resumed = self.escalation.handle(request)
             state.escalated = True
             state.log.event("escalation.returned", resumed=resumed)
@@ -542,8 +563,8 @@ class ReplayEngine:
             kind,
             expected="a recoverable state or human resolution",
             observed=reason,
-            step_id=step.id,
-            screenshot=self._capture(state.run_id, f"{step.id}-stuck"),
+            step_id=step_id,
+            screenshot=self._capture(state.run_id, f"{step_id or 'final'}-stuck"),
         )
 
     # -- outputs -----------------------------------------------------------

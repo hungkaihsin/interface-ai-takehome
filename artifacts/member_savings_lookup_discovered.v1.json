@@ -1,0 +1,174 @@
+{
+  "schema_version": "1.0",
+  "capability_id": "member_savings_lookup_discovered",
+  "version": 1,
+  "name": "Read the current savings balance for member 10001.",
+  "description": "Read the current savings balance for member 10001.",
+  "surface": {
+    "kind": "web",
+    "app_id": "meridian-backoffice-v4",
+    "tenant_id": "meridian-cu",
+    "entry_url": "http://127.0.0.1:5001/shell"
+  },
+  "inputs": [
+    {
+      "name": "member_id",
+      "type": "string",
+      "description": "Value supplied per invocation (discovered as member_id).",
+      "required": true,
+      "pattern": null,
+      "example": "10001",
+      "sensitive": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "savings_balance",
+      "type": "money",
+      "description": "Discovered from the 18432.19 cell.",
+      "source": {
+        "locator": {
+          "frame_path": [
+            "main"
+          ],
+          "strategies": [
+            {
+              "kind": "role_in_container",
+              "role": "cell",
+              "container": {
+                "role": "row",
+                "name": "SAVINGS",
+                "name_match": "contains",
+                "index": null
+              },
+              "index": 2
+            }
+          ],
+          "describes": "the 18432.19 cell"
+        },
+        "transform": [
+          {
+            "kind": "strip",
+            "pattern": null
+          },
+          {
+            "kind": "to_number",
+            "pattern": null
+          }
+        ]
+      },
+      "required": true,
+      "sensitive": false
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "intent": "Open the application at its entry point.",
+      "action": {
+        "kind": "navigate",
+        "url": "http://127.0.0.1:5001/shell"
+      },
+      "risk": "safe",
+      "checkpoint": null
+    },
+    {
+      "id": "s2",
+      "intent": "Enter the member_id into the Member Number textbox.",
+      "action": {
+        "kind": "fill",
+        "target": {
+          "frame_path": [
+            "main"
+          ],
+          "strategies": [
+            {
+              "kind": "role_name",
+              "role": "textbox",
+              "name": "Member Number",
+              "name_match": "exact"
+            }
+          ],
+          "describes": "the Member Number textbox"
+        },
+        "value": "{{ member_id }}"
+      },
+      "risk": "safe",
+      "checkpoint": null
+    },
+    {
+      "id": "s3",
+      "intent": "Click the Search button.",
+      "action": {
+        "kind": "click",
+        "target": {
+          "frame_path": [
+            "main"
+          ],
+          "strategies": [
+            {
+              "kind": "role_name",
+              "role": "button",
+              "name": "Search",
+              "name_match": "exact"
+            }
+          ],
+          "describes": "the Search button"
+        }
+      },
+      "risk": "safe",
+      "checkpoint": null
+    }
+  ],
+  "success": {
+    "condition": {
+      "kind": "element_present",
+      "locator": {
+        "frame_path": [
+          "main"
+        ],
+        "strategies": [
+          {
+            "kind": "role_in_container",
+            "role": "cell",
+            "container": {
+              "role": "row",
+              "name": "SAVINGS",
+              "name_match": "contains",
+              "index": null
+            },
+            "index": 2
+          }
+        ],
+        "describes": "the 18432.19 cell"
+      }
+    },
+    "description": "the member record shows a SAVINGS row with the correct balance",
+    "timeout_ms": 10000
+  },
+  "business_outcomes": [],
+  "recoverables": [],
+  "policy": {
+    "allowed_origins": [
+      "http://127.0.0.1:5001"
+    ],
+    "allowed_actions": [
+      "navigate",
+      "click",
+      "fill",
+      "select",
+      "press",
+      "wait_for"
+    ],
+    "has_irreversible_steps": false,
+    "approved_for_unattended": false
+  },
+  "provenance": {
+    "discovered_at": "2026-08-13T13:02:49.828742Z",
+    "model": "gemini-2.5-flash-lite",
+    "discovery_run_id": "discovery-20260813T130244Z-639211",
+    "llm_turns": 4,
+    "notes": "DRAFT recorded by an LLM discovery run. Before unattended use a reviewer must (1) classify any irreversible steps as risky, (2) declare the business outcomes this flow can legitimately return, and (3) set approved_for_unattended."
+  },
+  "extends": null
+}

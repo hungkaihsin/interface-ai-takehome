@@ -20,6 +20,7 @@ import os
 from dataclasses import dataclass
 
 from capability.locator import Locator, RoleNameStrategy
+from capability.schema import TextPresent
 
 from .base import SurfaceError
 
@@ -59,3 +60,14 @@ class MeridianSessionProvider:
         )
         if not surface.click(signon).resolved:
             raise SurfaceError("sign-on screen did not present a Sign On button")
+
+        # Wait for the console to actually come up. Clicking returns before the
+        # navigation lands, so without this the caller's first action races the
+        # sign-on redirect and looks for a frame that does not exist yet.
+        if not surface.wait_for(
+            TextPresent(text="BACK-OFFICE CONSOLE", scope="any_frame"), 8_000
+        ):
+            raise SurfaceError(
+                "signed on but the back-office console did not load; "
+                "credentials may be wrong"
+            )

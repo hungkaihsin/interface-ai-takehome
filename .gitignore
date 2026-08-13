@@ -9,4 +9,4 @@ venv/
 .playwright/
 node_modules/
 .pytest_cache/
-evidence/*.png
+# screenshots ARE evidence and are committed deliberately; see evidence/README.md
