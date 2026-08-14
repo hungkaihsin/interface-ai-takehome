@@ -275,7 +275,7 @@ Check the `status` column against the table above. Two `success`, two
 ### 3. Does it refuse what it should?
 
 ```bash
-.venv/bin/pytest tests/ -v          # 21 tests
+.venv/bin/pytest tests/ -v          # 25 tests
 ```
 
 Then break something on purpose — this teaches more than reading the tests. Open

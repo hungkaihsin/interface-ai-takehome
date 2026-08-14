@@ -292,7 +292,7 @@ unattended replay; if the two could drift apart, the guardrail would be decorati
 .venv/bin/pytest tests/ -v
 ```
 
-**Expect** — **21 passed**. Each test takes a good artifact, breaks it one specific
+**Expect** — **25 passed**. Each test takes a good artifact, breaks it one specific
 way, and asserts the refusal.
 
 ---
@@ -415,7 +415,7 @@ Tick these off before you submit:
 - [ ] Replay works with `GOOGLE_API_KEY` unset (step 5)
 - [ ] Escalation completes, and `navigations` is recorded (step 6)
 - [ ] A risky step with a reversible policy is **refused** (step 7)
-- [ ] `pytest` → 21 passed (step 7)
+- [ ] `pytest` → 25 passed (step 7)
 - [ ] A discovery run exists in `/evidence/` (step 8)
 - [ ] No SSN, password, or API key in `evidence/` or the repo (step 9)
 - [ ] Pushed to a public GitHub repo
