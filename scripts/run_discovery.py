@@ -16,7 +16,6 @@ import argparse
 import json
 import os
 import sys
-from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -86,17 +85,25 @@ def main() -> int:
             result = agent.discover(goal=args.goal, entry_url=args.entry)
         except QuotaExhausted:
             # Actionable rather than cryptic: a daily quota is not something the
-            # user can wait out in this session, so say what to do instead.
+            # user can wait out in this session, so say what to do instead. The
+            # alternatives exclude the model that just failed -- suggesting a
+            # retry with the exact thing that ran out is worse than saying nothing.
+            alternatives = [
+                m
+                for m in ("gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.5-pro")
+                if m != args.model
+            ]
             print(
                 f"\n  The free-tier DAILY quota for {args.model!r} is spent.\n"
                 "  Backing off will not help -- daily quotas reset at midnight "
                 "Pacific.\n\n"
                 "  Options:\n"
-                "    1. Re-run with a model that has its own quota:\n"
-                "         --model gemini-2.5-flash-lite\n"
-                "    2. Wait for the reset.\n"
-                "    3. Skip discovery entirely -- a recorded run is already in\n"
-                "       evidence/, and replay never needs a key:\n"
+                "    1. Try a model with a separate quota (each is metered "
+                "independently):\n"
+                + "".join(f"         --model {m}\n" for m in alternatives)
+                + "    2. Wait for the reset.\n"
+                "    3. Skip discovery -- a recorded run is already in evidence/,\n"
+                "       and replay never needs a key:\n"
                 "         .venv/bin/python -m scripts.demo_replay --all\n"
             )
             return 2

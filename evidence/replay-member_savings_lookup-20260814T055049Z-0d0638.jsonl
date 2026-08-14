@@ -1,9 +1,0 @@
-{"ts": "2026-08-14T05:50:49.370663+00:00", "run_id": "replay-member_savings_lookup-20260814T055049Z-0d0638", "type": "replay.start", "capability": "member_savings_lookup", "version": 1, "schema_version": "1.0", "tenant": "meridian-cu", "inputs": {"member_id": "50001"}}
-{"ts": "2026-08-14T05:50:49.370865+00:00", "run_id": "replay-member_savings_lookup-20260814T055049Z-0d0638", "type": "replay.preflight_ok", "inputs_validated": 1}
-{"ts": "2026-08-14T05:50:49.586707+00:00", "run_id": "replay-member_savings_lookup-20260814T055049Z-0d0638", "type": "session.established"}
-{"ts": "2026-08-14T05:50:49.687480+00:00", "run_id": "replay-member_savings_lookup-20260814T055049Z-0d0638", "type": "action.navigate", "step": "s1", "url": "http://127.0.0.1:5001/shell"}
-{"ts": "2026-08-14T05:50:49.695840+00:00", "run_id": "replay-member_savings_lookup-20260814T055049Z-0d0638", "type": "step.done", "step": "s1", "intent": "Open the back-office console, which lands on member inquiry.", "checkpoint": true}
-{"ts": "2026-08-14T05:50:49.696032+00:00", "run_id": "replay-member_savings_lookup-20260814T055049Z-0d0638", "type": "action.fill", "step": "s2", "target": "the Member Number input on the inquiry screen", "value": "50001"}
-{"ts": "2026-08-14T05:50:49.699000+00:00", "run_id": "replay-member_savings_lookup-20260814T055049Z-0d0638", "type": "step.done", "step": "s2", "intent": "Type the member number into the Member Number field."}
-{"ts": "2026-08-14T05:50:49.699147+00:00", "run_id": "replay-member_savings_lookup-20260814T055049Z-0d0638", "type": "action.click", "step": "s3", "target": "the Search button on the inquiry screen"}
-{"ts": "2026-08-14T05:50:49.740451+00:00", "run_id": "replay-member_savings_lookup-20260814T055049Z-0d0638", "type": "step.done", "step": "s3", "intent": "Submit the search."}

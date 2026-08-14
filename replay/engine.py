@@ -32,12 +32,11 @@ from __future__ import annotations
 import re
 import time
 from datetime import datetime, timezone
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
 from capability.schema import (
     BusinessOutcome,
     CapabilityArtifact,
-    Checkpoint,
     ClickAction,
     FillAction,
     NavigateAction,
@@ -69,14 +68,6 @@ SETTLE_TIMEOUT_MS = 12_000
 
 #: Hard ceiling on step+recovery iterations for one run. A loop guard, not a policy.
 MAX_ITERATIONS = 60
-
-
-class StuckContext(Protocol):
-    """Everything a human needs to decide what to do. See replay/escalation.py."""
-
-    capability_id: str
-    step_id: str | None
-    reason: str
 
 
 class EscalationHandler(Protocol):

@@ -1,0 +1,11 @@
+{"ts": "2026-08-14T07:09:52.309292+00:00", "run_id": "replay-member_savings_lookup-20260814T070952Z-fbd9c1", "type": "replay.start", "capability": "member_savings_lookup", "version": 1, "schema_version": "1.0", "tenant": "meridian-cu", "inputs": {"member_id": "10001"}}
+{"ts": "2026-08-14T07:09:52.309645+00:00", "run_id": "replay-member_savings_lookup-20260814T070952Z-fbd9c1", "type": "replay.preflight_ok", "inputs_validated": 1}
+{"ts": "2026-08-14T07:09:52.523850+00:00", "run_id": "replay-member_savings_lookup-20260814T070952Z-fbd9c1", "type": "session.established"}
+{"ts": "2026-08-14T07:09:52.535154+00:00", "run_id": "replay-member_savings_lookup-20260814T070952Z-fbd9c1", "type": "action.navigate", "step": "s1", "url": "http://127.0.0.1:5001/shell"}
+{"ts": "2026-08-14T07:09:52.546588+00:00", "run_id": "replay-member_savings_lookup-20260814T070952Z-fbd9c1", "type": "step.done", "step": "s1", "intent": "Open the back-office console, which lands on member inquiry.", "checkpoint": true}
+{"ts": "2026-08-14T07:09:52.546776+00:00", "run_id": "replay-member_savings_lookup-20260814T070952Z-fbd9c1", "type": "action.fill", "step": "s2", "target": "the Member Number input on the inquiry screen", "value": "10001"}
+{"ts": "2026-08-14T07:09:52.549752+00:00", "run_id": "replay-member_savings_lookup-20260814T070952Z-fbd9c1", "type": "step.done", "step": "s2", "intent": "Type the member number into the Member Number field."}
+{"ts": "2026-08-14T07:09:52.549885+00:00", "run_id": "replay-member_savings_lookup-20260814T070952Z-fbd9c1", "type": "action.click", "step": "s3", "target": "the Search button on the inquiry screen"}
+{"ts": "2026-08-14T07:09:52.598818+00:00", "run_id": "replay-member_savings_lookup-20260814T070952Z-fbd9c1", "type": "step.done", "step": "s3", "intent": "Submit the search."}
+{"ts": "2026-08-14T07:09:52.635197+00:00", "run_id": "replay-member_savings_lookup-20260814T070952Z-fbd9c1", "type": "outputs.extracted", "outputs": {"savings_balance": 18432.19}}
+{"ts": "2026-08-14T07:09:52.635390+00:00", "run_id": "replay-member_savings_lookup-20260814T070952Z-fbd9c1", "type": "replay.finish", "status": "success", "summary": "SUCCESS outputs={'savings_balance': 18432.19}"}

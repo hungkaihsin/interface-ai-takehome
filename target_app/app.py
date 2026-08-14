@@ -45,7 +45,6 @@ from flask import (
 
 from . import faults
 from .data import (
-    MEMBERS,
     OPERATOR_PASSWORD,
     OPERATOR_USERNAME,
     Account,
