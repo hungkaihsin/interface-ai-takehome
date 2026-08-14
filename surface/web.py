@@ -1,22 +1,12 @@
-"""A browser backend for `Surface`, built on Playwright.
+"""Playwright backend for `Surface`. The only file that knows browsers exist.
 
-The only file in the project that knows browsers exist. Swapping it for a desktop
-backend means satisfying the same protocol against an OS accessibility API; nothing
-above this file changes, and no stored artifact needs re-recording.
+Everything goes through `get_by_role`. `locator("css=...")` is never used, because a
+CSS selector that works would tempt the discovery loop into recording one, and an
+artifact full of CSS can never run against a desktop app.
 
-Two implementation choices worth defending:
-
-**Everything goes through `get_by_role`.** Playwright offers `locator("css=...")`
-and it would often be shorter. It is never used here, because a CSS selector that
-works would tempt the discovery loop into recording one, and a stored artifact full
-of CSS is one that can never run against a desktop app. The constraint is enforced
-by not providing the capability.
-
-**Resolution is strict about uniqueness.** Playwright's own convention is that a
-locator matching several elements resolves to the first on action. That default is
-rejected here: a strategy that matches three rows has not identified a control, and
-acting on the first one is how automation reads the wrong member's balance without
-ever raising an error.
+Resolution is strict about uniqueness: Playwright resolves several matches to the
+first, which is how automation reads the wrong member's balance without ever
+raising.
 """
 
 from __future__ import annotations
@@ -55,9 +45,8 @@ from .base import (
 
 DEFAULT_ACTION_TIMEOUT_MS = 8_000
 
-#: Conditions are evaluated inside polling loops, so a missing frame must fail fast.
-#: Waiting the full action timeout on every poll turns a 12-second settle budget into
-#: minutes of dead time -- measured, not theorised.
+#: Conditions are polled, so a missing frame must fail fast -- waiting the full
+#: action timeout on every poll turns a 12-second budget into minutes of dead time.
 CONDITION_FRAME_TIMEOUT_MS = 1_200
 
 
@@ -114,19 +103,13 @@ class WebSurface:
     # -- frames -----------------------------------------------------------
 
     def _frame(self, frame_path: list[str], timeout_ms: int = 5_000) -> Frame:
-        """Walk the frame path from the top document inward, waiting for it to exist.
+        """Walk the frame path from the top document inward, waiting for it.
 
-        Walked by name at each level rather than looked up globally, because two
-        frames in different parts of a legacy console can share a name and a global
-        lookup would return whichever loaded first.
-
-        The wait is not optional. A frame-based app tears down and rebuilds its
-        child frames on every navigation, so for a short window after any click the
-        named frame either does not exist yet or exists but is detached. Resolving
-        against that window produces "Frame was detached" -- a transient condition,
-        not a broken flow -- so we poll for a live frame instead of failing on the
-        first look. Detached frames are filtered out explicitly rather than trusted
-        to disappear, because Playwright keeps returning them for a moment.
+        By name at each level, not globally: two frames in a legacy console can
+        share a name. The wait is not optional -- a framed app rebuilds its child
+        frames on every navigation, so for a short window after any click the frame
+        is missing or detached. Detached frames are filtered explicitly, because
+        Playwright keeps returning them for a moment.
         """
         deadline = time.monotonic() + timeout_ms / 1000
         seen: list[str] = []
@@ -149,11 +132,7 @@ class WebSurface:
 
     @staticmethod
     def _count(candidate: PWLocator, retries: int = 2) -> int:
-        """Count matches, tolerating a frame detaching mid-count.
-
-        Same transient as above, caught one level lower: the frame can survive the
-        lookup and detach before the count returns.
-        """
+        """Count matches, tolerating a frame that detaches mid-count."""
         for attempt in range(retries + 1):
             try:
                 return candidate.count()
@@ -234,9 +213,8 @@ class WebSurface:
                 )
                 continue
 
-            # An explicit index has already narrowed the selection, so one match
-            # is expected; without one, several matches means the description is
-            # no longer specific enough and we must not guess.
+            # Several matches means the description is no longer specific enough,
+            # and guessing is what this design exists to prevent.
             if count == 1:
                 result.attempts.append(
                     StrategyAttempt(strategy.kind, described, count, chosen=True)
@@ -264,8 +242,8 @@ class WebSurface:
         return resolution
 
     def goto(self, url: str) -> None:
-        # "load" rather than "domcontentloaded": this app puts every screen
-        # inside iframes, and domcontentloaded fires before they exist.
+        # "load", not "domcontentloaded": every screen is inside an iframe, and
+        # domcontentloaded fires before they exist.
         self.page.goto(url, wait_until="load")
 
     def click(self, locator: Locator) -> Resolution:
@@ -344,11 +322,9 @@ class WebSurface:
     def wait_until_absent(self, condition: Condition, timeout_ms: int) -> bool:
         """Poll until a condition stops holding.
 
-        The mirror of `wait_for`, and needed for exactly one job: deciding whether
-        a remedy actually cleared an obstruction. Checking once immediately after
-        clicking "Acknowledge" reads the old screen, because the navigation it
-        triggers has not landed yet -- which made a working remedy look like a
-        failed one and burned a second attempt against the retry budget.
+        Needed for one job: deciding whether a remedy cleared an obstruction.
+        Checking once right after clicking reads the screen the click is still
+        navigating away from.
         """
         deadline = time.monotonic() + timeout_ms / 1000
         while True:
@@ -361,11 +337,8 @@ class WebSurface:
     def wait_for(self, condition: Condition, timeout_ms: int) -> bool:
         """Poll a condition until it holds or the budget runs out.
 
-        Polling rather than an event subscription because the conditions are
-        composed from stored data, not from a selector Playwright can watch. The
-        cost is a short delay before noticing; the benefit is that waiting works
-        identically for every condition type, including on a desktop backend that
-        has no event stream at all.
+        Polling rather than events, because conditions are composed from stored
+        data and must work identically on a backend with no event stream.
         """
         deadline = time.monotonic() + timeout_ms / 1000
         while True:
@@ -394,7 +367,7 @@ class WebSurface:
         return Perception(frames=frames)
 
     def screenshot(self, name: str) -> str | None:
-        """Capture a full-page PNG. Best-effort: evidence must never break a run."""
+        """Best-effort: evidence must never break a run."""
         try:
             self.evidence_dir.mkdir(parents=True, exist_ok=True)
             path = self.evidence_dir / f"{name}.png"

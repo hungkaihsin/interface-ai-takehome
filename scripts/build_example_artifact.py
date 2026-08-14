@@ -1,13 +1,8 @@
 """Hand-author the member-savings-lookup capability and write it to disk.
 
-Why a hand-written artifact exists at all, when the point of the project is that
-the LLM produces these: it decouples the replay engine from the discovery loop.
-Replay can be built and tested against a known-good artifact today, and discovery
-only has to prove it emits the *same shape* later. Building them in the other
-order would mean debugging a non-deterministic model and a new executor at once.
-
-It also serves as the schema's worked example -- the concrete thing to read when
-`schema.py` feels abstract.
+Exists so the replay engine could be built and tested against a known-good artifact
+before the discovery loop existed -- debugging a non-deterministic model and a new
+executor at once is avoidable. Also the schema's worked example.
 """
 
 from __future__ import annotations
@@ -71,13 +66,10 @@ def search_button() -> Locator:
 
 
 def savings_balance_cell() -> Locator:
-    """The balance itself.
+    """The balance: third cell of the row that says SAVINGS.
 
-    There is no id, class or test attribute anywhere near this number. What is
-    durable is its position *within the row that says SAVINGS*: third cell, after
-    the account number and the type. Anchoring to the row's meaning rather than
-    the table's shape is what survives a member opening a second account or the
-    vendor adding a column above.
+    Nothing near this number has an id or class. Anchoring to the row's meaning
+    rather than the table's shape survives a vendor adding a column above.
     """
     return Locator(
         frame_path=["main"],
@@ -134,10 +126,8 @@ def build() -> CapabilityArtifact:
             Step(
                 id="s1",
                 intent="Open the back-office console, which lands on member inquiry.",
-                # /shell, not /search. Navigating straight to /search renders that
-                # screen as the whole document and destroys the frame shell the
-                # rest of the flow addresses. The entry point of a framed app is
-                # the frameset, never an inner page.
+                # /shell, not /search: navigating straight to an inner page renders
+                # it as the whole document and destroys the frame shell.
                 action=NavigateAction(url=f"{BASE}/shell"),
                 risk="safe",
                 checkpoint=Checkpoint(
@@ -158,11 +148,9 @@ def build() -> CapabilityArtifact:
                 intent="Submit the search.",
                 action=ClickAction(target=search_button()),
                 risk="safe",
-                # No checkpoint here on purpose: after this click the screen may
-                # legitimately be the record, a "no member found" result, a denial,
-                # or an interstitial. Asserting the happy path here would convert
-                # three valid answers into a false failure. The taxonomy below is
-                # what reads the result.
+                # No checkpoint on purpose: four screens are valid after this click,
+                # so asserting the happy path would turn three answers into
+                # failures. The taxonomy below reads the result instead.
             ),
         ],
         success=Checkpoint(

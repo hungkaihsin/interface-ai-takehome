@@ -1,30 +1,14 @@
-"""MeridianCU Back-Office -- a deliberately hostile stand-in for a legacy bank app.
+"""MeridianCU Back-Office: a deliberately hostile stand-in for a legacy bank app.
 
-This is the target surface, not part of the automation system. It exists to be
-driven, and it is shaped to be *unpleasant* to drive in the specific ways the
-brief describes: server-rendered, frame-based, table-laid-out, no test IDs, no
-semantic class names, and full of runtime conditions that a happy-path script
-would sail straight past.
+The target surface, not part of the automation system. Content lives inside named
+iframes, layout is carried by nested tables, there are no test IDs or meaningful
+class names, and records render SSNs and account numbers in the clear so redaction
+has real work to do.
 
-What makes it hostile, and why each choice is there:
+The search form uses proper <label for> bindings; the sub-account form does not.
+That asymmetry exercises both the clean accessible-name path and the degraded one.
 
-  frames          Content lives inside nested <iframe>s that navigate each other
-                  by name. Any locator strategy that assumes one flat document
-                  breaks immediately, which forces the frame path to become part
-                  of the addressing scheme -- the same problem real framesets and
-                  desktop window hierarchies pose.
-  table layout    Structure is carried by nested <table> elements used for
-                  positioning, so the markup tree says nothing about meaning.
-  no test IDs     Nothing to select on but role, accessible name, and position.
-  mixed labelling The search form uses real <label for> bindings; the sub-account
-                  form does not, and leans on adjacent table cells instead. That
-                  asymmetry is deliberate: it exercises both the clean
-                  accessible-name path and the degraded fallback path in one app.
-  sensitive data  Records carry SSNs and full account numbers so that redaction
-                  has something real to remove from artifacts and logs.
-
-Bound to localhost. Credentials are fake and hardcoded. Never point this at
-anything real.
+Binds to localhost. Credentials are fake. Never point this at anything real.
 """
 
 from __future__ import annotations
@@ -54,14 +38,11 @@ from .data import (
 app = Flask(__name__)
 app.secret_key = os.environ.get("TARGET_APP_SECRET") or secrets.token_hex(16)
 
-#: How long an operator session survives. Short enough that a long automation run
-#: can plausibly trip it, which is the point.
+#: Short enough that a long automation run can plausibly trip it.
 SESSION_MINUTES = 30
 
-#: Sub-accounts opened during this process's lifetime, keyed by member id. Kept in
-#: memory because persistence is not what this app is demonstrating -- but note
-#: that creating one is the app's only irreversible action, which is what makes it
-#: the interesting case for the safety allowlist.
+#: In memory: persistence is not what this app demonstrates. Creating one is its
+#: only irreversible action, which is what makes it interesting for the allowlist.
 CREATED_SUBACCOUNTS: dict[str, list[Account]] = {}
 
 PRODUCT_CODES = {
@@ -97,11 +78,8 @@ def _start_session(username: str) -> None:
 
 
 def _require_session() -> None:
-    """Abort into the expired-session screen if the operator is not logged in.
-
-    Raises rather than returning a redirect so that every view can call it as a
-    guard clause without threading a return value through.
-    """
+    """Raises rather than returning a redirect, so views can use it as a guard
+    clause without threading a return value through."""
     if not _session_is_live():
         abort(redirect(url_for("login", expired="1")))
 
@@ -280,12 +258,8 @@ def subaccount_new(member_id: str):
 
 
 # --------------------------------------------------------------------------
-# out-of-band test hooks
-#
-# Not part of the surface the agent is allowed to drive -- the automation reaches
-# these over HTTP directly, never by clicking. They exist so a session timeout can
-# be produced at an exact moment during a replay, which is the only way to make
-# that evidence reproducible.
+# Out-of-band test hooks. Reached over HTTP directly, never by clicking, so a
+# session timeout can be produced at an exact moment during a replay.
 # --------------------------------------------------------------------------
 
 

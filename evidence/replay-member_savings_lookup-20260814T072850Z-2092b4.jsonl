@@ -1,0 +1,11 @@
+{"ts": "2026-08-14T07:28:50.448188+00:00", "run_id": "replay-member_savings_lookup-20260814T072850Z-2092b4", "type": "replay.start", "capability": "member_savings_lookup", "version": 1, "schema_version": "1.0", "tenant": "meridian-cu", "inputs": {"member_id": "99999"}}
+{"ts": "2026-08-14T07:28:50.448340+00:00", "run_id": "replay-member_savings_lookup-20260814T072850Z-2092b4", "type": "replay.preflight_ok", "inputs_validated": 1}
+{"ts": "2026-08-14T07:28:50.533948+00:00", "run_id": "replay-member_savings_lookup-20260814T072850Z-2092b4", "type": "session.established"}
+{"ts": "2026-08-14T07:28:50.544397+00:00", "run_id": "replay-member_savings_lookup-20260814T072850Z-2092b4", "type": "action.navigate", "step": "s1", "url": "http://127.0.0.1:5001/shell"}
+{"ts": "2026-08-14T07:28:50.552432+00:00", "run_id": "replay-member_savings_lookup-20260814T072850Z-2092b4", "type": "step.done", "step": "s1", "intent": "Open the back-office console, which lands on member inquiry.", "checkpoint": true}
+{"ts": "2026-08-14T07:28:50.552747+00:00", "run_id": "replay-member_savings_lookup-20260814T072850Z-2092b4", "type": "action.fill", "step": "s2", "target": "the Member Number input on the inquiry screen", "value": "99999"}
+{"ts": "2026-08-14T07:28:50.555582+00:00", "run_id": "replay-member_savings_lookup-20260814T072850Z-2092b4", "type": "step.done", "step": "s2", "intent": "Type the member number into the Member Number field."}
+{"ts": "2026-08-14T07:28:50.555712+00:00", "run_id": "replay-member_savings_lookup-20260814T072850Z-2092b4", "type": "action.click", "step": "s3", "target": "the Search button on the inquiry screen"}
+{"ts": "2026-08-14T07:28:50.599670+00:00", "run_id": "replay-member_savings_lookup-20260814T072850Z-2092b4", "type": "step.done", "step": "s3", "intent": "Submit the search."}
+{"ts": "2026-08-14T07:28:50.763916+00:00", "run_id": "replay-member_savings_lookup-20260814T072850Z-2092b4", "type": "outcome.detected", "code": "MEMBER_NOT_FOUND"}
+{"ts": "2026-08-14T07:28:50.764236+00:00", "run_id": "replay-member_savings_lookup-20260814T072850Z-2092b4", "type": "replay.finish", "status": "business_outcome", "summary": "BUSINESS_OUTCOME MEMBER_NOT_FOUND"}

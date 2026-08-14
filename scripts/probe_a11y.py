@@ -1,10 +1,8 @@
-"""Throwaway probe: can we perceive and act on this app purely via the a11y tree?
+"""Probe: can we perceive and act on this app through the accessibility tree alone?
 
-Answers three questions before we commit to the perception design:
-  1. Does aria_snapshot() reach inside the iframes at all?
-  2. Do the *labelled* controls (search form) expose usable accessible names?
-  3. What do the *unlabelled* controls (sub-account form) look like -- i.e. how
-     bad is the degraded case we'll need a fallback for?
+Run before committing to the locator design. Answers three questions: does
+aria_snapshot reach inside the iframes, do labelled controls expose usable names,
+and how bad is the degraded case we need a fallback for.
 """
 from playwright.sync_api import sync_playwright
 

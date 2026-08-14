@@ -328,7 +328,7 @@ scripts/         the demo entry points
 artifacts/       saved capabilities (hand-authored reference + discovered draft)
 evidence/        run logs and failure screenshots
 tests/           schema guardrails, redaction, recorder defences
-docs/            the assignment brief + a plain-language orientation
+docs/            the assignment brief + a step-by-step testing guide
 ```
 
 Two artifacts ship deliberately:
@@ -350,5 +350,6 @@ Two artifacts ship deliberately:
 [**`REPORT.md`**](/REPORT.md) — architecture, artifact schema, determinism & error
 handling, heterogeneity & multi-tenant, escalation & handoff, safety, and cuts.
 
-New to the problem space? [`docs/ORIENTATION.md`](docs/ORIENTATION.md) explains what
-this is and why, in plain language, before any code.
+Want to check the claims rather than take them on trust?
+[`docs/TESTING_GUIDE.md`](docs/TESTING_GUIDE.md) walks through verifying each one,
+with the command, the expected output, and what it proves.

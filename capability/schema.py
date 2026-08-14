@@ -1,36 +1,13 @@
-"""The capability artifact -- the typed, versioned recipe a successful run leaves behind.
+"""The capability artifact: the typed, versioned recipe a successful run leaves behind.
 
-This is the centre of the system. Everything upstream (the LLM discovery loop)
-exists to produce one of these; everything downstream (deterministic replay, the
-safety layer, escalation) exists to consume one. The brief calls the schema "a
-focal point of the evaluation", so the shaping choices are argued in place.
+Discovery produces one of these; deterministic replay, safety and escalation all
+consume one.
 
-The four decisions worth defending:
-
-1. **It is a contract, not a macro.** A recording of clicks would be enough to
-   re-run one flow. It would not be enough for an AI agent to *call* -- an agent
-   needs to know what arguments to pass, what it gets back, and what the possible
-   answers are, without reading the steps. So inputs, outputs, success condition
-   and business outcomes are all declared at the top level, and the step list is
-   an implementation detail underneath them.
-
-2. **Expected outcomes are declared data, not exception handling.** `business_outcomes`
-   sits beside `success` as a first-class field. "No such member" is an answer the
-   caller asked for, and the artifact says up front which answers this capability
-   can return. This is the brief's named "most common design mistake", and the
-   schema is where we refuse to make it -- a taxonomy that lives only in `try/except`
-   is invisible to the agent deciding whether to call the capability at all.
-
-3. **Two independent version numbers.** `schema_version` versions the *format*, so
-   an old artifact stays loadable by a newer engine. `version` versions *this
-   capability*, so a re-recording after a vendor upgrade is a new revision of the
-   same named thing rather than a different capability. Conflating them would mean
-   a format change silently invalidating every stored recipe.
-
-4. **Values are templates, not literals.** A step fills `{{ member_id }}`, never
-   `10001`. That is what makes the artifact a parameterised capability instead of
-   a transcript of one afternoon -- and it is also a privacy property, because the
-   concrete member ID never enters the stored file.
+Shaped as a contract rather than a macro -- inputs, outputs, success condition and
+expected business outcomes are top-level, so a calling agent can decide whether to
+invoke it without reading a single step. `schema_version` versions the format,
+`version` versions the capability. Step values are templates (`{{ member_id }}`),
+which is what makes it reusable and keeps concrete member data out of the file.
 """
 
 from __future__ import annotations
@@ -55,27 +32,17 @@ TEMPLATE_PATTERN = re.compile(r"\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}")
 
 
 class TextPresent(BaseModel):
-    """Is this text on the screen (in this frame)?
-
-    The workhorse. Legacy apps signal almost everything through prose -- "No member
-    found", "Entitlement check failed" -- and that prose is far more stable than
-    the markup wrapped around it.
-    """
+    """Is this text on screen? The workhorse -- legacy apps signal almost everything
+    through prose, which is far more stable than the markup around it."""
 
     kind: Literal["text_present"] = "text_present"
     frame_path: list[str] = Field(default_factory=list)
     text: str
     match: Literal["exact", "contains", "regex"] = "contains"
-    #: Where to look. "frame" checks exactly `frame_path`; "any_frame" checks
-    #: every frame in the document.
-    #:
-    #: The escape hatch exists because some conditions genuinely are not
-    #: frame-stable. A session timeout lands in the inner frame when an inner
-    #: action triggered it, and replaces the whole document when a top-level
-    #: navigation did -- so pinning it to one path would make detection depend on
-    #: which step happened to expire. Conditions that *are* frame-stable, like a
-    #: "no member found" result, stay pinned, because a broad scan would also
-    #: match that text appearing in a nav panel or a help page.
+    #: "any_frame" for conditions that are not frame-stable -- a session timeout
+    #: lands in the inner frame or replaces the whole document depending on what
+    #: triggered it. Frame-stable conditions stay pinned so a nav panel mentioning
+    #: the same words cannot match.
     scope: Literal["frame", "any_frame"] = "frame"
 
 
@@ -87,12 +54,7 @@ class ElementPresent(BaseModel):
 
 
 class UrlMatches(BaseModel):
-    """Does the frame's URL match a pattern?
-
-    Weakest of the three and used only as corroboration: a URL says where the
-    browser went, not what rendered. A session-timeout bounce and a successful
-    load can both leave you somewhere plausible.
-    """
+    """Corroboration only: a URL says where the browser went, not what rendered."""
 
     kind: Literal["url_matches"] = "url_matches"
     frame_path: list[str] = Field(default_factory=list)
@@ -105,12 +67,10 @@ Condition = Annotated[
 
 
 class Checkpoint(BaseModel):
-    """An assertion that we actually reached the state we expected.
+    """Confirms we arrived, rather than assuming the click worked.
 
-    The brief's glossary defines this as confirming you arrived rather than
-    assuming the click worked -- and the distinction has teeth, because in this
-    app a click that silently lands on the login screen after a session timeout
-    looks exactly like a click that worked, right up until you read the page.
+    A click that silently lands on the login screen after a timeout looks exactly
+    like a click that worked, right up until you read the page.
     """
 
     condition: Condition
@@ -132,8 +92,8 @@ class ParamSpec(BaseModel):
     type: ValueType
     description: str
     required: bool = True
-    #: Validated before the browser is ever opened. Catching a malformed member
-    #: number here costs nothing; catching it three screens in costs a session.
+    #: Validated before the browser opens -- catching a malformed member number
+    #: three screens in costs a session.
     pattern: str | None = None
     example: Any | None = None
     #: Marks an argument as regulated data. Such values are resolved into the live
@@ -142,11 +102,10 @@ class ParamSpec(BaseModel):
 
 
 class Transform(BaseModel):
-    """A pure, declarative cleanup applied to scraped text.
+    """Declarative cleanup for scraped text.
 
-    Declarative rather than a code hook on purpose: an artifact is a document that
-    a compliance reviewer should be able to read, and an embedded lambda would make
-    it an executable of unknown behaviour.
+    Declarative rather than a code hook: an artifact is a document a compliance
+    reviewer reads, and an embedded lambda would make it an executable.
     """
 
     kind: Literal["strip", "to_number", "strip_currency", "regex_extract"]
@@ -208,12 +167,10 @@ class PressAction(BaseModel):
 
 
 class WaitForAction(BaseModel):
-    """Wait for a condition rather than a duration.
+    """Wait for a condition, never a duration.
 
-    There is no `sleep` action anywhere in this schema, and that is deliberate:
-    fixed sleeps are the standard source of flaky automation. The 3-second stall
-    the target app injects is absorbed by waiting for the *record* to appear, which
-    is correct whether the stall is 3 seconds or 8.
+    There is no sleep action in this schema. Waiting for the record to appear is
+    correct whether the stall is 3 seconds or 8.
     """
 
     kind: Literal["wait_for"] = "wait_for"
@@ -233,27 +190,20 @@ Action = Annotated[
     Field(discriminator="kind"),
 ]
 
-#: Reversibility, judged at record time and enforced at replay time.
-#:
-#: "safe" means doing it twice is indistinguishable from doing it once -- reads,
-#: navigation, typing into a field. "risky" means it changes state the institution
-#: or its member can see: opening an account, moving money, altering a record.
-#: The split is about *reversibility*, not about how dangerous it sounds, because
-#: reversibility is the property that decides whether an automatic retry is safe.
+#: "safe" means doing it twice is indistinguishable from doing it once. "risky"
+#: means it changes state the institution or member can see. The split is about
+#: reversibility, because that is what decides whether a retry is safe.
 RiskClass = Literal["safe", "risky"]
 
 
 class Step(BaseModel):
     id: str
-    #: Why this step exists, in plain language, captured at discovery time. This
-    #: is what a human reviewer reads and what a failure message quotes; without
-    #: it, a failed artifact is a pile of roles and names.
+    #: Why this step exists. What a reviewer reads and a failure message quotes.
     intent: str
     action: Action
     risk: RiskClass = "safe"
-    #: Verified immediately after the step. Per-step checkpoints are what let a
-    #: failure name the step that broke rather than reporting that the run ended
-    #: somewhere unexpected.
+    #: Lets a failure name the step that broke, rather than reporting that the run
+    #: ended somewhere unexpected.
     checkpoint: Checkpoint | None = None
 
 
@@ -265,9 +215,8 @@ class Step(BaseModel):
 class BusinessOutcome(BaseModel):
     """A legitimate non-happy answer this capability can return.
 
-    Declared per capability rather than globally, because what counts as an
-    expected answer is capability-specific: "no such member" is a fine result for
-    a lookup and a broken precondition for a transfer.
+    Per capability, not global: "no such member" is a fine result for a lookup and
+    a broken precondition for a transfer.
     """
 
     code: str
@@ -281,10 +230,8 @@ class BusinessOutcome(BaseModel):
 class RecoverableCondition(BaseModel):
     """A known obstruction with a known remedy.
 
-    The remedy is itself a list of steps, so recovery reuses the ordinary executor
-    rather than a parallel code path. `max_attempts` is what stops a remedy that
-    does not actually clear the obstruction from looping forever -- exhausting it
-    converts the condition into a hard failure, which is the honest outcome.
+    The remedy is a list of steps, so recovery reuses the ordinary executor.
+    Exhausting `max_attempts` converts the condition into a hard failure.
     """
 
     code: str
@@ -292,13 +239,9 @@ class RecoverableCondition(BaseModel):
     description: str
     remedy: list[Step]
     max_attempts: int = 2
-    #: Set when recovery requires a fresh authenticated session.
-    #:
-    #: The artifact declares *that* a session is needed and never *how* to get
-    #: one, because obtaining one means credentials, and credentials must never
-    #: live in a stored capability. The engine satisfies this by calling the
-    #: platform's session provider, so the same artifact works for any tenant
-    #: whose credentials are configured elsewhere.
+    #: Declares *that* a session is needed, never *how* to get one -- credentials
+    #: must not live in a stored capability. The engine calls the platform's
+    #: session provider.
     reestablish_session: bool = False
 
 
@@ -308,12 +251,10 @@ class RecoverableCondition(BaseModel):
 
 
 class Policy(BaseModel):
-    """The guardrail envelope, stored *with* the capability.
+    """The guardrail envelope, stored with the capability.
 
-    Carried in the artifact rather than only in global config so that the
-    permissions travel with the thing being permitted: a capability that can open
-    accounts declares that about itself, and a reviewer approving it sees the
-    blast radius on the same page as the steps.
+    Permissions travel with the thing being permitted, so a reviewer sees the blast
+    radius on the same page as the steps.
     """
 
     allowed_origins: list[str] = Field(
@@ -322,26 +263,20 @@ class Policy(BaseModel):
     allowed_actions: list[str] = Field(
         default_factory=lambda: ["navigate", "click", "fill", "select", "press", "wait_for"]
     )
-    #: True if any step is risky. Derived at build time, stored explicitly so a
-    #: catalogue can filter on it without walking the step list.
+    #: Stored explicitly so a catalogue can filter without walking the step list.
     has_irreversible_steps: bool = False
-    #: Unattended replay is refused unless this is set. The gate for the risky
-    #: class: block by default, let a human turn it on per capability.
+    #: Unattended replay is refused unless set: block by default, let a human turn
+    #: it on per capability.
     approved_for_unattended: bool = False
 
 
 class SurfaceBinding(BaseModel):
     """What kind of surface this was recorded against, and where it starts.
 
-    `kind` is the seam for heterogeneity. The steps above name roles, names and
-    containers -- vocabulary a desktop accessibility API supplies just as a browser
-    does -- so extending to desktop means writing a second backend behind this
-    field, not reshaping the artifact.
-
-    `tenant_id` and `app_id` are the seam for multi-tenancy: `app_id` identifies
-    the vendor product, `tenant_id` the institution running it. Two tenants on the
-    same product share an `app_id`, which is what makes "record once, reuse across
-    tenants" expressible at all.
+    `kind` is the heterogeneity seam: extending to desktop means a second backend
+    behind this field, not a reshaped artifact. `app_id` identifies the vendor
+    product and `tenant_id` the institution, which is what makes "record once,
+    reuse across tenants" expressible.
     """
 
     kind: Literal["web", "desktop"] = "web"
@@ -351,18 +286,13 @@ class SurfaceBinding(BaseModel):
 
 
 class Provenance(BaseModel):
-    """How this artifact came to exist.
-
-    Recorded because a replayable capability with no origin story is unreviewable:
-    a compliance officer needs to know it was machine-discovered, by which model,
-    on which date, against which app version.
-    """
+    """How this artifact came to exist -- a capability with no origin story is
+    unreviewable."""
 
     discovered_at: datetime
     model: str
     discovery_run_id: str
-    #: Number of model turns the discovery took. A crude but real signal -- a flow
-    #: that needed 30 turns to find is one to look at before trusting.
+    #: A flow that needed 30 turns to find is one to look at before trusting.
     llm_turns: int
     notes: str | None = None
 
@@ -393,10 +323,8 @@ class CapabilityArtifact(BaseModel):
     policy: Policy
     provenance: Provenance
 
-    #: Optional pointer to a base capability this one specialises. Not implemented
-    #: -- it exists so the multi-tenant story has somewhere to land without a
-    #: schema change: a tenant whose vendor app differs slightly would publish an
-    #: artifact that extends the base and overrides only the steps that differ.
+    #: Not implemented. Present so cross-tenant specialisation has somewhere to
+    #: land without a schema change: a tenant overrides only the steps that differ.
     extends: str | None = None
 
     # -- validation -------------------------------------------------------
@@ -412,12 +340,8 @@ class CapabilityArtifact(BaseModel):
 
     @model_validator(mode="after")
     def _check_templates_resolve(self) -> "CapabilityArtifact":
-        """Every `{{ param }}` must name a declared input.
-
-        Checked at load time so a broken artifact is rejected before it opens a
-        browser against a banking app, rather than failing partway through a flow
-        with half its steps already committed.
-        """
+        """Rejected at load time, before a browser opens against a banking app and
+        half the steps commit."""
         declared = {p.name for p in self.inputs}
         for step in self.steps:
             value = getattr(step.action, "value", None)
@@ -432,13 +356,8 @@ class CapabilityArtifact(BaseModel):
 
     @model_validator(mode="after")
     def _check_policy_matches_steps(self) -> "CapabilityArtifact":
-        """The declared risk flag must match what the steps actually do.
-
-        Without this, `has_irreversible_steps` is a comment. With it, an artifact
-        that opens an account cannot claim to be read-only -- and since that flag
-        is what the approval gate reads, letting the two drift would quietly
-        disable the guardrail.
-        """
+        """Without this the risk flag is a comment, and since the approval gate
+        reads it, drift would quietly disable the guardrail."""
         actual = any(s.risk == "risky" for s in self.steps)
         if actual and not self.policy.has_irreversible_steps:
             raise ValueError(

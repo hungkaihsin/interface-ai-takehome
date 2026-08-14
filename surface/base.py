@@ -1,30 +1,12 @@
-"""The surface abstraction -- the seam between *how we perceive and act* and *what flow was recorded*.
+"""The surface abstraction: how we perceive and act, separated from what was recorded.
 
-This is the file that answers requirement 3.7. Everything above it (the discovery
-loop, the replay engine, the escalation machinery) talks only to this interface.
-Nothing above it imports Playwright, mentions a browser, or knows what a DOM is.
+Nothing above this module imports Playwright or knows what a DOM is. Controls are
+addressed by accessibility role, name and containment -- a vocabulary that also
+exists on Windows UI Automation and macOS AX, so a desktop backend is a second
+implementation of this protocol rather than a change to the artifact schema.
 
-The bet being made: a control can be addressed by **role, accessible name, and
-containment**, and that vocabulary is not browser-specific. Windows UI Automation
-exposes ControlType, Name and a tree; macOS AX exposes AXRole, AXTitle and
-AXChildren. So extending to a desktop application means writing a second class
-that satisfies this protocol -- not touching the artifact schema, the replay
-engine, or the error taxonomy.
-
-What is deliberately *not* in this interface:
-
-  * No CSS or XPath. Those are browser-only, so admitting them here would let
-    browser assumptions leak into stored artifacts and quietly kill the desktop
-    story.
-  * No pixel coordinates. A screenshot-driven model would produce them naturally,
-    but they cannot survive a window resize, so they must not reach an artifact.
-  * No `sleep`. Waiting is expressed as waiting *for a condition*; a duration is
-    a guess about someone else's machine.
-
-The one thing this interface does concede to reality is `frame_path`, because a
-document that contains other documents is not a browser quirk -- it is the same
-shape as a desktop window containing panes, and pretending it away would make
-the abstraction dishonest.
+CSS, XPath and pixel coordinates are absent by design: admitting them here would let
+browser assumptions reach stored artifacts.
 """
 
 from __future__ import annotations
@@ -37,7 +19,7 @@ from capability.schema import Condition
 
 
 class SurfaceError(Exception):
-    """Something went wrong at the surface layer itself, not in the flow."""
+    """A problem at the surface layer itself, not in the recorded flow."""
 
 
 class FrameNotFound(SurfaceError):
@@ -51,13 +33,7 @@ class FrameNotFound(SurfaceError):
 
 @dataclass
 class StrategyAttempt:
-    """One locator strategy tried, and what it matched.
-
-    Kept per attempt so a resolution failure can report the whole ladder it walked
-    rather than only the last rung. When replay breaks six months from now, "tried
-    role+name 'Search' (0 matches), then row-scoped (3 matches, ambiguous)" is the
-    difference between a five-minute fix and an afternoon.
-    """
+    """One locator strategy tried, and what it matched."""
 
     kind: str
     described: str
@@ -80,16 +56,16 @@ class Resolution:
 
     @property
     def ambiguous(self) -> bool:
-        """True when a strategy matched several elements and none was chosen.
+        """Several matches, none chosen.
 
-        Surfaced separately from "not found" because the two demand opposite
-        responses: nothing matched usually means the screen is not what we
-        expected, while several matched means the screen is fine and our
-        description of the control is no longer specific enough.
+        Reported separately from "not found" because the two mean opposite things:
+        nothing matched suggests the screen is wrong, several matched suggests our
+        description is no longer specific enough.
         """
         return not self.resolved and any(a.match_count > 1 for a in self.attempts)
 
     def explain(self) -> str:
+        """The whole ladder that was walked, for a debuggable failure message."""
         if not self.attempts:
             return "no strategies were attempted"
         return "; ".join(
@@ -106,13 +82,9 @@ class FramePerception:
     path: list[str]
     url: str
     title: str
-    #: The accessibility tree, rendered as indented text. This is what the LLM
-    #: reads during discovery -- not HTML, and not a screenshot. It is compact,
-    #: it names controls the way the artifact will name them, and it contains no
-    #: styling noise.
+    #: Accessibility tree as indented text -- what the LLM reads. Not HTML, not a
+    #: screenshot: compact, and it names controls the way the artifact will.
     aria: str
-    #: Visible text, used for the cheap text-presence conditions that carry most
-    #: of the outcome detection on a legacy app.
     text: str
 
 
@@ -121,16 +93,13 @@ class Perception:
     """A full observation of the surface at one moment."""
 
     frames: list[FramePerception]
-    #: Populated only when something went wrong. Screenshots are the "richer
-    #: signal on failure" of requirement 3.5, and they are expensive and can
-    #: contain regulated data, so they are not taken on the happy path.
     screenshot_path: str | None = None
 
     def frame(self, path: list[str]) -> FramePerception | None:
         return next((f for f in self.frames if f.path == path), None)
 
     def render(self, max_chars_per_frame: int = 6_000) -> str:
-        """Flatten to the text an LLM sees. Truncated to keep prompts bounded."""
+        """Flatten to the text an LLM sees, truncated to keep prompts bounded."""
         parts: list[str] = []
         for f in self.frames:
             label = "/".join(f.path) if f.path else "(top document)"
@@ -143,11 +112,9 @@ class Perception:
 
 @runtime_checkable
 class Surface(Protocol):
-    """Everything the layers above are allowed to do to a live application.
+    """Everything the layers above may do to a live application.
 
-    Small on purpose. Each additional verb here is one more thing a future
-    desktop backend must implement, so the set is kept to what the artifact
-    schema can actually express.
+    Kept small: each verb is one more thing a desktop backend must implement.
     """
 
     def goto(self, url: str) -> None: ...

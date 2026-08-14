@@ -1,11 +1,11 @@
 # Testing guide — verify this yourself, step by step
 
-> **Who this is for:** Daniel, and anyone who wants to check the claims rather than
-> take them on trust. Work through it in order; each step builds on the last.
+> For anyone who would rather check the claims than take them on trust. Work
+> through it in order; each step builds on the last.
 >
 > **Time:** about 25 minutes for steps 0–7. Step 8 (discovery) needs an API key.
 
-Every step below has the same four parts:
+Every step has the same four parts:
 
 **Run** → **Expect** → **What it proves** → **If it fails**
 
@@ -29,7 +29,7 @@ Software that correctly *refuses* is what you actually trust with a bank's data.
 **Run**
 
 ```bash
-cd "/Users/danielhung/Desktop/02. Projects/interface-ai-takehome"
+cd <repo>
 .venv/bin/python --version
 .venv/bin/python -c "import flask, playwright, pydantic, google.genai; print('deps ok')"
 ```
@@ -413,7 +413,6 @@ Tick these off before you submit:
 - [ ] `pytest` → 21 passed (step 7)
 - [ ] A discovery run exists in `/evidence/` (step 8)
 - [ ] No SSN, password, or API key in `evidence/` or the repo (step 9)
-- [ ] **`CLAUDE.md` removed from the repo *and its history*** before publishing
 - [ ] Pushed to a public GitHub repo
 
 ---

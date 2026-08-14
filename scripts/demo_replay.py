@@ -1,11 +1,10 @@
-"""Replay a saved capability. The production execution path -- no model involved.
+"""Replay a saved capability: the production path, no model involved.
 
-    .venv/bin/python -m scripts.demo_replay --member 10001
-    .venv/bin/python -m scripts.demo_replay --all      # every injected condition
+    python -m scripts.demo_replay --member 10001
+    python -m scripts.demo_replay --all
 
-Runs with GOOGLE_API_KEY unset. That is the point: if this needed a model, the
-whole design claim would be false, and the easiest way to check the claim is to
-delete the key and watch it still work.
+Runs with GOOGLE_API_KEY unset. If this needed a model the whole design claim
+would be false, and deleting the key is the easiest way to check.
 """
 
 from __future__ import annotations

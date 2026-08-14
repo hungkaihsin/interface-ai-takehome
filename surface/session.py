@@ -1,17 +1,9 @@
-"""Establishing an authenticated session -- deliberately outside the artifact.
+"""Signing on, kept outside the artifact.
 
-Signing on is not part of any capability, and that separation is a safety decision
-rather than a tidiness one. If logging in were recorded as steps, the artifact
-would contain either credentials or a flow that only works for one operator, and
-the file is meant to be shareable across tenants and reviewable by humans.
-
-So: the artifact declares that it needs a session (see
-`RecoverableCondition.reestablish_session`), and the platform supplies one. The
-same recorded flow then runs for any institution whose credentials are configured
-in that institution's environment.
-
-Credentials come from the environment, default to the target app's published test
-account, and are registered with the run's redactor so they cannot reach a log.
+If logging in were recorded as steps, every artifact would carry either credentials
+or a flow that works for one operator. Instead the artifact declares that it needs a
+session and the platform supplies one, so the same recorded flow runs for any tenant
+whose credentials are configured in its own environment.
 """
 
 from __future__ import annotations
@@ -36,9 +28,9 @@ def _field(name: str) -> Locator:
 class MeridianSessionProvider:
     """Signs on to the MeridianCU console.
 
-    Tied to one app's sign-on screen on purpose. A generic "log in to anything"
-    abstraction would be guesswork; a per-app provider is a small, honest amount
-    of code that a new tenant's onboarding would supply alongside its credentials.
+    Tied to one app's sign-on screen deliberately -- a generic "log in to anything"
+    abstraction would be guesswork. A new tenant supplies its own provider alongside
+    its credentials.
     """
 
     base_url: str = "http://127.0.0.1:5001"
@@ -54,6 +46,7 @@ class MeridianSessionProvider:
         if not surface.fill(_field("Operator ID"), self.username).resolved:
             raise SurfaceError("sign-on screen did not present an Operator ID field")
         surface.fill(_field("Password"), self.password)
+
         signon = Locator(
             describes="the Sign On button",
             strategies=[RoleNameStrategy(role="button", name="Sign On")],
@@ -61,13 +54,11 @@ class MeridianSessionProvider:
         if not surface.click(signon).resolved:
             raise SurfaceError("sign-on screen did not present a Sign On button")
 
-        # Wait for the console to actually come up. Clicking returns before the
-        # navigation lands, so without this the caller's first action races the
-        # sign-on redirect and looks for a frame that does not exist yet.
+        # Clicking returns before the redirect lands, so without this the caller's
+        # first action races sign-on and looks for a frame that does not exist yet.
         if not surface.wait_for(
             TextPresent(text="BACK-OFFICE CONSOLE", scope="any_frame"), 8_000
         ):
             raise SurfaceError(
-                "signed on but the back-office console did not load; "
-                "credentials may be wrong"
+                "signed on but the console did not load; credentials may be wrong"
             )

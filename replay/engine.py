@@ -1,30 +1,18 @@
-"""Deterministic replay -- requirement 3.3, the production execution path.
+"""Deterministic replay: the production execution path.
 
-No LLM is imported in this package, and that is the point rather than an accident.
-The absence is the proof of the design claim: an AI agent invoking a capability in
-production gets the same steps every time, at no model cost, and a reviewer can
-verify that by unsetting every API key and watching replay still work.
+No LLM is imported anywhere in this package. That absence is the design claim, and
+a reviewer can check it by unsetting every API key and watching replay still work.
 
-The execution model, and why it is shaped this way:
+Two rules the implementation turns on:
 
-**Never look once; always settle.** After each action the screen may legitimately
-become any of several things -- the expected next page, a business outcome, a
-recoverable obstruction, or nothing yet because the app is slow. So the engine
-never asserts a single condition immediately after acting. It polls the whole
-known state space until one member of it matches or the budget expires. Checking
-instantly was measured to be intermittently wrong on this very app, which is worse
-than consistently wrong because it produces flaky automation nobody trusts.
+Never look once. After an action the screen may legitimately be any of several
+states, or not have arrived yet, so the engine polls the whole known state space
+until one member matches. Checking immediately was measured to be intermittently
+correct, which is worse than consistently wrong.
 
-**Classification order is outcome, then recoverable, then success.** Business
-outcomes are terminal and most specific, so they are tested first; a screen that
-says "no member found" must never be read as a slow-loading record.
-
-**Restarting after a lost session is gated on reversibility.** Re-establishing a
-session means replaying the flow from the top. That is safe only while every step
-executed so far was reversible. If a risky step has already committed, restarting
-could open a second account, so the engine refuses and escalates instead. This is
-the one place where the safe/risky classification does real work rather than
-decorating a log line.
+Restarting is gated on reversibility. Recovering a lost session means replaying
+from the top, which is safe only while every executed step was reversible. If a
+risky step has committed, the engine escalates instead of risking a duplicate.
 """
 
 from __future__ import annotations
@@ -71,11 +59,9 @@ MAX_ITERATIONS = 60
 
 
 class EscalationHandler(Protocol):
-    """The seam to requirement 3.6.
+    """Returns True if a human resolved it and replay should continue.
 
-    Returns True if a human resolved the situation and replay should carry on from
-    the current step, False if the run should fail. Kept as a protocol so the
-    engine has no opinion about *how* a human is reached.
+    A protocol so the engine has no opinion about how a human is reached.
     """
 
     def handle(self, context: Any) -> bool: ...
@@ -133,9 +119,8 @@ class ReplayEngine:
             self._establish_session(state)
             result = self._execute(state)
         except _Reject as exc:
-            # Rejected before or during execution on grounds we can state exactly:
-            # a bad argument, a missing approval. No screenshot, because nothing
-            # interesting is on screen -- the run never got that far.
+            # No screenshot: the run never got far enough for anything to be on
+            # screen worth capturing.
             result = state.fail(exc.kind, expected=exc.expected, observed=exc.observed)
         except PolicyViolation as exc:
             result = state.fail(
@@ -159,10 +144,7 @@ class ReplayEngine:
     def _preflight(self, state: "_RunState") -> None:
         """Everything checkable before a browser is touched.
 
-        Front-loaded on purpose: rejecting a malformed member number costs
-        nothing here and costs a session three screens in, and a policy breach
-        caught before the first navigation never touches the institution's app
-        at all.
+        A policy breach caught here never touches the institution's app at all.
         """
         artifact = state.artifact
 
@@ -205,12 +187,9 @@ class ReplayEngine:
     def _execute(self, state: "_RunState") -> ReplayResult:
         """Walk the steps, then classify the final screen.
 
-        One loop rather than "run the steps, then check the result", because the
-        end of the step list is not the end of the run. The last step may land on a
-        recoverable obstruction -- an interstitial between the search and the
-        record -- and that has to be cleared and re-classified, not reported as a
-        failed checkpoint. Recovery can also rewind to the first step, so the two
-        phases have to share a cursor.
+        One loop, not two phases: the last step may land on a recoverable
+        obstruction that has to be cleared and re-classified, and recovery can
+        rewind to the first step, so both share a cursor.
         """
         artifact = state.artifact
         index = 0
@@ -219,9 +198,9 @@ class ReplayEngine:
         while True:
             iterations += 1
             if iterations > MAX_ITERATIONS:
-                # Belt and braces. Per-condition attempt caps should make this
-                # unreachable; if it ever fires, a bounded failure beats a hung
-                # automation holding a session open against a banking app.
+                # Per-condition attempt caps should make this unreachable. If it
+                # fires, a bounded failure beats a hung automation holding a
+                # session open against a banking app.
                 return state.fail(
                     FailureKind.UNRECOVERED_CONDITION,
                     expected="the flow to reach a terminal state",
@@ -252,11 +231,8 @@ class ReplayEngine:
             if verdict == "success":
                 return self._extract_outputs(state)
 
-            # The surface settled into something this capability does not
-            # recognise. That is the definition of stuck, so a human is offered
-            # the run before it is declared a failure -- an artifact recorded
-            # before anyone had seen a given screen is exactly the case where a
-            # person can finish what the automation cannot.
+            # Settled into something this capability does not recognise: the
+            # definition of stuck, so offer it to a human before failing.
             return self._escalate_or_fail(
                 state,
                 artifact.steps[-1] if artifact.steps else None,
@@ -300,9 +276,8 @@ class ReplayEngine:
         if step.risk == "risky":
             state.committed_irreversible = True
 
-        # A control we could not find is not automatically a broken artifact --
-        # the screen may have become a known outcome instead. Classify before
-        # blaming the locator.
+        # A control we could not find may mean the screen became a known outcome.
+        # Classify before blaming the locator.
         if resolution is not None and not resolution.resolved:
             verdict = self._settle(state, SETTLE_TIMEOUT_MS // 3)
             if isinstance(verdict, BusinessOutcome):
@@ -407,9 +382,10 @@ class ReplayEngine:
     def _settle(
         self, state: "_RunState", timeout_ms: int
     ) -> BusinessOutcome | RecoverableCondition | str:
-        """Poll until the screen is one of the states this capability knows about.
+        """Poll until the screen is a state this capability knows about.
 
-        Returns the matching outcome or recoverable, "success", or "unknown".
+        Outcomes are checked before success: a screen saying "no member found" must
+        never be read as a slow-loading record.
         """
         artifact = state.artifact
         deadline = time.monotonic() + timeout_ms / 1000
@@ -437,9 +413,8 @@ class ReplayEngine:
         )
 
         if condition.reestablish_session:
-            # Replaying from the top is only safe while nothing irreversible has
-            # committed. Otherwise a retry could open a second account, so we stop
-            # and ask a human instead of guessing.
+            # Only safe while nothing irreversible has committed -- otherwise a
+            # retry could open a second account.
             if state.committed_irreversible:
                 return _terminal(
                     self._escalate_or_fail(
@@ -511,11 +486,10 @@ class ReplayEngine:
     def _escalate_or_fail(
         self, state: "_RunState", step: Step | None, reason: str, kind: FailureKind
     ) -> ReplayResult:
-        """Try a human before giving up. The bridge into requirement 3.6.
+        """Try a human before giving up.
 
-        Escalation is offered, never assumed: with no console configured this is
-        an ordinary failure. That keeps unattended replay -- the production path --
-        free of any dependency on somebody being awake.
+        Offered, never assumed: with no console configured this is an ordinary
+        failure, so unattended replay never depends on somebody being awake.
         """
         step_id = step.id if step is not None else None
         if self.escalation is not None:
@@ -534,10 +508,8 @@ class ReplayEngine:
                 perception=self._describe_screen(state),
             )
             state.log.event("escalation.raised", step=step_id, reason=reason)
-            # Lend the console this run's log so the control transfer itself is
-            # recorded in the same evidence file as the automation's own steps.
-            # A handoff written to a different sink would make the one moment the
-            # run changed hands the one moment the evidence is silent about.
+            # Lend the console this run's log, so the handoff lands in the same
+            # evidence file as the automation's own steps.
             if getattr(self.escalation, "log", "missing") is None:
                 self.escalation.log = state.log  # type: ignore[attr-defined]
             resumed = self.escalation.handle(request)
@@ -584,11 +556,7 @@ class ReplayEngine:
         return self.surface.screenshot(f"{run_id}-{label}")
 
     def _describe_screen(self, state: "_RunState") -> str:
-        """A redacted, truncated description of what is on screen right now.
-
-        This is what lands in `observed` on a failure, so it has to be readable by
-        a human at 3am and safe to store -- hence redaction before truncation.
-        """
+        """What lands in `observed` on a failure: readable at 3am, safe to store."""
         try:
             perception = self.surface.perceive()
         except Exception as exc:  # noqa: BLE001
@@ -737,11 +705,10 @@ def _validate_param(spec: ParamSpec, value: Any) -> None:
                 FailureKind.INVALID_INPUT, f"{spec.name} to be numeric", repr(value)
             ) from None
     if spec.pattern and not re.fullmatch(spec.pattern, text):
+        # The offending value is not echoed -- it may be regulated data.
         raise _Reject(
             FailureKind.INVALID_INPUT,
             f"{spec.name} matching {spec.pattern}",
-            # The offending value is not echoed: it may be regulated data, and an
-            # error message is a place data leaks from.
             f"a {len(text)}-character value that does not match",
         )
 

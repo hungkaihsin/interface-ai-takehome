@@ -1,33 +1,12 @@
-"""The LLM-driven observe / decide / act loop -- requirement 3.1.
+"""The LLM observe / decide / act loop.
 
-This is the only part of the system that calls a model, and the only part that is
-non-deterministic. Everything it produces is handed to code that is neither.
+The only part of the system that calls a model, and the only non-deterministic
+part. Everything it produces is handed to code that is neither.
 
-Shape of a turn: perceive every frame as an accessibility tree, hand that to
-Gemini along with the goal and the tool vocabulary, receive one function call,
-validate it against the safety policy, execute it through the `Surface`, and feed
-the result back. Repeat until the model calls `finish`, calls `give_up`, or a
-stopping condition fires.
-
-Three decisions worth defending:
-
-**Text, not screenshots.** The model reads accessibility trees. That is cheaper,
-it survives a legacy app's meaningless markup, and -- decisively -- it makes the
-model's chosen action expressible as a stored locator. A vision loop would return
-coordinates, which cannot go in an artifact that has to replay next month.
-
-**The safety layer sits between decide and act, not around the loop.** Every tool
-call is checked against the allowlist before it executes, so a model that
-hallucinates a URL or an action type is stopped at the boundary rather than
-apologised for afterwards. A refusal is fed back as an observation, which lets the
-model correct course rather than dying.
-
-**Malformed tool calls are expected, not exceptional.** Gemini's function calling
-is less rigid than some alternatives, which was a known trade-off when the provider
-was chosen. So a missing argument, an unknown frame, or a name that matches nothing
-is answered with a specific, actionable error string and the loop continues. Only
-repeated failure to make progress ends the run. The recorded trajectory keeps only
-the calls that actually succeeded, so a bad turn never reaches the artifact.
+The model reads accessibility trees, not screenshots, so the action it picks is
+already expressible as a stored locator -- a vision loop returns coordinates, which
+cannot survive into an artifact. Safety sits between decide and act: a refused tool
+call is fed back as an observation so the model re-routes rather than dying.
 """
 
 from __future__ import annotations
@@ -55,35 +34,29 @@ from .tools import SYSTEM_INSTRUCTION, TOOLSET
 
 DEFAULT_MODEL = "gemini-2.5-flash"
 
-#: Stopping conditions. Generous enough for a genuinely multi-screen flow, tight
-#: enough that a confused model cannot spend the afternoon clicking.
+#: Generous enough for a multi-screen flow, tight enough that a confused model
+#: cannot spend the afternoon clicking.
 MAX_TURNS = 24
 MAX_CONSECUTIVE_ERRORS = 4
 MAX_WALL_SECONDS = 600
 
-#: Backoff for transient provider failures (rate limits, 5xx). The free tier's
-#: per-minute window is short, so a few doubling waits clear it.
+#: The free tier's per-minute window is short, so a few doubling waits clear it.
 RETRY_ATTEMPTS = 5
 RETRY_BASE_SECONDS = 8
 
 
 class QuotaExhausted(RuntimeError):
-    """The model's quota is spent for the period; waiting will not help.
+    """Quota spent for the period; waiting will not help.
 
-    Separate from a rate limit on purpose. Both arrive as HTTP 429, but a
-    per-minute cap clears in seconds while a per-day cap clears at midnight, and
-    conflating them means backing off for minutes against something that cannot
-    move. The same distinction the result contract draws between a recoverable
-    condition and a hard failure -- applied to our own dependency.
+    Both this and a rate limit arrive as HTTP 429, but a per-minute cap clears in
+    seconds and a per-day cap clears at midnight. The same recoverable-versus-hard
+    distinction the result contract draws, applied to our own dependency.
     """
 
 
 def classify_provider_error(message: str) -> tuple[str, int | None]:
-    """Sort a provider error into rate_limited / quota_exhausted / other.
-
-    Returns the class and, for rate limits, the provider's own suggested wait in
-    seconds when it supplied one.
-    """
+    """Sort into rate_limited / quota_exhausted / other, with the provider's own
+    suggested wait when it supplied one."""
     if "PerDay" in message:
         return "quota_exhausted", None
 
@@ -195,9 +168,8 @@ class DiscoveryAgent:
 
             call = self._next_call(history, log, turn)
             if call is None:
-                # Keep roles alternating even when the model says nothing, so one
-                # empty turn does not corrupt the shape of the conversation and
-                # cause every following turn to be empty too.
+                # Keep roles alternating, so one empty turn does not corrupt the
+                # conversation and empty every turn after it.
                 consecutive_errors += 1
                 history.append(
                     types.Content(
@@ -246,14 +218,9 @@ class DiscoveryAgent:
             else:
                 consecutive_errors += 1
 
-            # The new screen is returned *inside* the function response rather than
-            # as a separate text part. Two reasons, one principled and one
-            # measured. Principled: acting on a UI returns a new observation, so
-            # the observation is the tool's result -- that is what an observe/act
-            # loop means. Measured: sending a function_response part and a text
-            # part in the same turn broke the strict call/response alternation and
-            # the model started returning empty turns immediately after any read,
-            # stalling the run into a false dead end.
+            # The new screen goes inside the function response, not a separate text
+            # part: acting on a UI returns an observation, and mixing the two broke
+            # call/response alternation and emptied every following turn.
             history.append(
                 types.Content(role="model", parts=[types.Part(function_call=call)])
             )
@@ -292,22 +259,16 @@ class DiscoveryAgent:
     ) -> types.FunctionCall | None:
         """One model turn, with backoff on transient provider failures.
 
-        The distinction this draws is the same one the replay engine draws about
-        the application: a rate limit is a *recoverable condition*, not a dead end.
-        Without it, the loop counted each 429 toward its consecutive-failure budget
-        and abandoned a perfectly good run after four of them -- reporting "dead
-        end" for what was actually a free-tier quota window. That misdiagnosis is
-        worth guarding against precisely because it looks like a model failure in
-        the logs.
+        A rate limit is a recoverable condition, not a dead end. Without this the
+        loop counted each 429 toward its failure budget and reported "dead end"
+        for what was a free-tier quota window.
         """
         delay = RETRY_BASE_SECONDS
         for attempt in range(RETRY_ATTEMPTS):
             call, retry_after = self._attempt_call(history, log, turn, attempt)
             if retry_after is None:
                 return call
-            # The provider usually tells us how long to wait. Preferring its number
-            # over our guess is the difference between waiting 8 seconds and waiting
-            # two minutes to make the same call.
+            # The provider usually says how long to wait; its number beats ours.
             wait = retry_after if retry_after > 0 else delay
             log.event("model.rate_limited", turn=turn, attempt=attempt, sleeping=wait)
             if self.echo:
@@ -327,14 +288,8 @@ class DiscoveryAgent:
                     tools=[TOOLSET],
                     system_instruction=SYSTEM_INSTRUCTION,
                     temperature=0.0,
-                    # Thinking is disabled deliberately. Gemini 2.5 Flash reasons
-                    # before answering by default, and on this loop that produced
-                    # turns that returned no content at all -- the budget went to
-                    # reasoning and the tool call never arrived, stalling the run.
-                    # Each turn here is a small decision over a fully-rendered
-                    # screen, not a puzzle, so the reasoning bought nothing and
-                    # cost reliability. Measured, not assumed: with thinking on,
-                    # roughly half of all turns came back empty.
+                    # Each turn is a small decision over a fully-rendered screen,
+                    # not a puzzle, so reasoning bought nothing here.
                     thinking_config=types.ThinkingConfig(thinking_budget=0),
                 ),
             )
@@ -346,17 +301,13 @@ class DiscoveryAgent:
                 turn=turn,
                 classification=classification,
                 retry_after=retry_after,
-                # Kept long enough to preserve the quota metric and limit. The
-                # earlier 400-character cap cut the payload off just before the
-                # part that says *which* quota was exceeded, which is the only
-                # part that tells you what to do about it.
+                # Long enough to keep the quota metric and limit -- the part that
+                # says what to do about it.
                 error=message[:1200],
             )
             if classification == "quota_exhausted":
-                # A daily quota does not clear by waiting a few seconds, so
-                # retrying is not resilience -- it is four minutes of pretending.
-                # Treated as a hard failure with an actionable message, exactly as
-                # the replay engine treats an unrecoverable application error.
+                # Retrying a daily quota is not resilience, it is four minutes of
+                # pretending.
                 raise QuotaExhausted(message) from exc
             return None, retry_after if classification == "rate_limited" else None
 
@@ -447,9 +398,8 @@ class DiscoveryAgent:
             return f"ERROR: unknown tool {name!r}", None
 
         except PermissionError as exc:
-            # Safety refusals are reported to the model rather than raised, so it
-            # can choose another route. A refused agent that keeps working is more
-            # useful than one that dies, and the refusal is still in the log.
+            # Reported to the model rather than raised, so it can re-route. The
+            # refusal is still in the log.
             log.event("safety.refused", turn=turn, tool=name, reason=str(exc))
             return f"REFUSED by safety policy: {exc}", None
         except Exception as exc:  # noqa: BLE001
@@ -459,11 +409,10 @@ class DiscoveryAgent:
     # -- helpers -----------------------------------------------------------
 
     def _locator_from(self, args: dict[str, Any]) -> Locator | None:
-        """Turn the model's arguments into a real `Locator`.
+        """Turn the model's arguments into a `Locator`.
 
-        This is where the vocabulary alignment pays off: there is no interpretation
-        step, only a direct mapping onto the two strategy tiers the schema already
-        has.
+        No interpretation step: a direct mapping onto the strategy tiers the schema
+        already has, because the tools speak the same vocabulary.
         """
         frame = str(args.get("frame") or "").strip()
         frame_path = [] if frame in ("", "top", "(top)") else [frame]

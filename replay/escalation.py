@@ -1,40 +1,16 @@
-"""Human-in-the-loop escalation and handoff -- requirement 3.6.
+"""Human-in-the-loop escalation and handoff.
 
-The requirement has three parts and each one is a design decision:
+"Stuck" is a defined state, not a feeling: the surface settled into something the
+capability does not declare, a remedy exhausted its attempt budget, or a session was
+lost after an irreversible step committed.
 
-**Detect and route.** "Stuck" is not a feeling, it is a defined state: the surface
-settled into something the capability does not recognise, or a declared remedy
-failed its attempt budget, or a session was lost after an irreversible step
-committed. Each of those produces an `InterventionRequest` carrying what a person
-actually needs -- which capability, which step and why it exists, what the screen
-says now, and a screenshot.
+The human works in the *same* browser context -- nothing is torn down, so session,
+cookies and half-filled forms survive. Control transfer is a context manager, so
+exactly one side can act and no locking is needed. Navigations during the takeover
+are observed from the live page rather than self-reported.
 
-**Take control of the same live session.** Not a fresh one. This is the part that
-is easy to fake and we do not: the browser context the automation was driving is
-handed to a person, they act in it, and the automation resumes against whatever
-state they left behind. Concretely, the engine blocks, the operator works in the
-same Chromium window, and control returns when they say so. Nothing is torn down
-and nothing is re-created, so cookies, session, scroll position and half-filled
-forms all survive the handoff -- which is the whole point, because a human called
-in halfway through a flow cannot start over.
-
-**Record what the human did.** Page navigations during the takeover window are
-captured by listening on the live page, so the record is observed rather than
-self-reported. A human who says "I just clicked acknowledge" and actually visited
-four screens leaves both facts in the evidence.
-
-**The control model.** Exactly one holder at a time, tracked explicitly. This is
-enforced structurally rather than by convention: the transfer is a context manager,
-so the automation is *inside a blocking call* for the entire time the human holds
-control and physically cannot act. A design where both sides could act would need
-locking; a design where the handoff is synchronous does not.
-
-What is mocked, deliberately and as the brief permits: the operator *console*. A
-production version is a co-browsing UI with an intervention queue. Here an operator
-is either a terminal prompt (`TerminalOperatorConsole`, a real human at a real
-browser) or a scripted stand-in (`ScriptedOperatorConsole`) used to make the
-evidence reproducible. Both go through the identical handoff path -- the mock is
-the *interface* a human sits behind, never the mechanism.
+The operator console is mocked (a terminal prompt, or a scripted stand-in so the
+evidence is reproducible). Both go through the identical handoff path.
 """
 
 from __future__ import annotations
@@ -61,8 +37,7 @@ class InterventionRequest:
     step_id: str | None
     step_intent: str | None
     reason: str
-    #: Redacted screen description. Redacted because an intervention request is a
-    #: message that leaves the process, and regulated data must not travel in it.
+    #: Redacted: an intervention request is a message that leaves the process.
     perception: str
     screenshot_path: str | None = None
     raised_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -113,8 +88,8 @@ class HandoffRecord:
 class SessionHandoff:
     """Transfers control of a live surface to a human and records what happened.
 
-    A context manager because control transfer has to be symmetric: whatever the
-    human does, including raising, control comes back and the record is closed.
+    A context manager so control comes back whatever the human does, including
+    raising.
     """
 
     def __init__(self, surface: Any, run_id: str, log: Any | None = None) -> None:
@@ -132,8 +107,6 @@ class SessionHandoff:
             self.record.url_before = page.url
 
             def on_navigated(frame: Any) -> None:
-                # Only top-level and named frames are interesting; anonymous
-                # sub-frame churn would drown the record in noise.
                 try:
                     self.record.navigations.append(f"{frame.name or 'top'} -> {frame.url}")
                 except Exception:  # noqa: BLE001
@@ -151,20 +124,10 @@ class SessionHandoff:
     def __exit__(self, *exc: object) -> None:
         page = getattr(self.surface, "page", None)
         if page is not None and self._listener is not None:
-            # Let any navigation the human just triggered actually land before we
-            # stop listening. Without this the record misses the very click that
-            # resolved the intervention: control returns the instant they act, and
-            # the page moves a moment later.
-            #
-            # Waiting on the *page* load state is not enough -- in a framed app the
-            # click navigates an inner frame while the top document sits still. So
-            # we wait for the thing we are actually recording, bounded, and give up
-            # quietly if the human's action genuinely navigated nothing.
-            #
-            # The wait must be `page.wait_for_timeout`, not `time.sleep`. Playwright's
-            # sync API only dispatches events while control is inside a Playwright
-            # call, so sleeping in Python blocks the very callbacks we are waiting
-            # for and the record comes back empty however long we wait.
+            # Wait for the navigation the human just triggered, or the record
+            # misses the very click that resolved the intervention. Must be
+            # wait_for_timeout, not time.sleep: Playwright's sync API only
+            # dispatches events while inside a Playwright call.
             deadline = time.monotonic() + 2.0
             while not self.record.navigations and time.monotonic() < deadline:
                 try:
@@ -202,9 +165,7 @@ class OperatorConsole(Protocol):
 class TerminalOperatorConsole:
     """A real human, at the real browser window, on the real session.
 
-    Requires the surface to have been started with `headless=False` -- otherwise
-    there is no window for a person to work in, and this console says so rather
-    than pretending the handoff happened.
+    Needs `headless=False`; says so rather than pretending the handoff happened.
     """
 
     surface: Any
@@ -230,16 +191,11 @@ class TerminalOperatorConsole:
 
 @dataclass
 class ScriptedOperatorConsole:
-    """A stand-in operator that performs a fixed remedy, for reproducible evidence.
+    """A stand-in operator performing a fixed remedy, so evidence is reproducible.
 
-    This is the documented mock. It exists because an evidence file that requires
-    a human to be sitting at a keyboard cannot be regenerated by a reviewer, and
-    "run this and a person must intervene" is not a demo anybody can check.
-
-    It is *not* a shortcut around the mechanism: it acquires control through the
-    same `SessionHandoff`, acts on the same live surface, and is recorded by the
-    same observer. Swap this for `TerminalOperatorConsole` and the engine cannot
-    tell the difference.
+    Not a shortcut around the mechanism: it acquires control through the same
+    `SessionHandoff` and is recorded by the same observer. Swap it for
+    `TerminalOperatorConsole` and the engine cannot tell the difference.
     """
 
     surface: Any
@@ -267,12 +223,9 @@ class ScriptedOperatorConsole:
 
 @dataclass
 class RefusingOperatorConsole:
-    """An operator who looks and declines to resolve it.
-
-    Models the honest case where a human cannot fix the problem either -- a core
-    banking outage is nobody's clicking error. The run must still end as a clean
-    failure carrying the fact that a person was consulted.
-    """
+    """An operator who looks and declines -- a core banking outage is nobody's
+    clicking error. The run ends as a clean failure that still records the
+    consultation."""
 
     note: str = "reviewed; not resolvable from the UI -- raising to the platform team"
     log: Any | None = None

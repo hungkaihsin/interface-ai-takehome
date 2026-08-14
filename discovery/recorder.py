@@ -1,32 +1,15 @@
-"""Turning a successful discovery run into a capability artifact -- requirement 3.2.
+"""Turning a successful discovery run into a capability artifact.
 
-The brief asks for an artifact "decoupled from the raw model transcript", and this
-module is where that decoupling happens. The transcript is a conversation; the
-artifact is a contract. What survives the crossing is only what replay needs: the
-actions that actually worked, the locators they used, the values that turned out to
-be parameters, and the values that turned out to be outputs. What is discarded is
-everything about *how the model got there* -- its reasoning, its wrong turns, its
-retries.
+The transcript is a conversation; the artifact is a contract. What crosses over is
+only what replay needs -- the actions that worked, their locators, the values that
+turned out to be parameters, and the values that turned out to be outputs.
 
-Two rules govern the translation:
+Parameterisation is by value matching at record time, so a concrete member number
+is substituted out rather than scrubbed later. Reads become outputs, not steps.
 
-**Parameterisation is by value matching, at record time.** The discovery run is
-given the parameters it is exercising along with example values. Any value the
-model typed that equals a declared example becomes `{{ that_parameter }}` in the
-artifact. This is why a concrete member number never reaches the stored file: it is
-substituted out at the moment of recording rather than scrubbed afterwards.
-
-**Reads become outputs, not steps.** A `read_text` call is not something replay
-performs on its way somewhere -- it is the capability's return value, and it belongs
-in the output contract with its own extraction locator.
-
-**Discovered artifacts are drafts.** Discovery cannot know which steps are
-irreversible, and it sees only the happy path, so it cannot know which business
-outcomes exist. Emitting one marked `approved_for_unattended=False` with an explicit
-review note is the honest representation of that: a machine proposes, a human
-classifies risk and declares outcomes, and only then does it run unattended. The
-alternative -- silently marking a discovered flow safe and approved -- would put a
-guardrail's name on something nothing has checked.
+Discovered artifacts are drafts: discovery sees only the happy path, so it cannot
+know which steps are irreversible or which business outcomes exist. A machine
+proposes; a human classifies risk and approves.
 """
 
 from __future__ import annotations
@@ -74,12 +57,8 @@ def _looks_like_money(text: str) -> bool:
 
 
 def _infer_type(text: str) -> ValueType:
-    """Guess an output's type from the single sample we observed.
-
-    Deliberately shallow. One observation is not evidence, so the guess is a
-    convenience for the reviewer rather than a claim -- and it is recorded in a
-    draft precisely so a human corrects it before anything depends on it.
-    """
+    """Guess from the one sample observed. A convenience for the reviewer to
+    correct, not a claim -- which is why it lands in a draft."""
     return "money" if _looks_like_money(text) else "string"
 
 
@@ -103,13 +82,10 @@ def to_artifact(
     steps: list[Step] = []
     counter = 0
 
-    # A recorded flow must establish its own starting state. Discovery begins with
-    # the browser already parked on the entry screen, so the model never navigates
-    # there and the trajectory silently depends on where it happened to start. At
-    # replay time nothing guarantees that -- the browser may be on a member record
-    # from a previous invocation, or on the sign-on screen. Prepending the entry
-    # navigation is what makes the capability self-contained rather than a fragment
-    # that only works in the conditions it was born in.
+    # Discovery starts with the browser already on the entry screen, so the model
+    # never navigates there and the trajectory silently depends on where it began.
+    # At replay time nothing guarantees that, so the flow must establish its own
+    # starting state.
     first = result.actions[0] if result.actions else None
     if not (first and first.kind == "navigate" and first.url == surface.entry_url):
         counter += 1
@@ -217,22 +193,13 @@ def to_artifact(
 def canonicalise_output_locator(locator: Locator, observed: str) -> Locator:
     """Strip strategies that identify a value by the value itself.
 
-    A locator whose job is to *return* a value must not be identified *by* that
-    value. Asked to read a balance of 18432.19, a model will readily target
-    `cell name "18432.19"` -- which replays perfectly for the member it was
-    recorded on and matches nothing for anyone else.
+    Asked to read a balance of 18432.19, a model will readily target
+    `cell name "18432.19"` -- perfect for the member it was recorded on, useless
+    for anyone else. Fixed here rather than in the prompt: guidance is advice, and
+    this failure is invisible until a different customer is queried.
 
-    Fixing this in the recorder rather than in the prompt is the point. Prompt
-    guidance measurably helps (a stronger model stopped doing it once told), but it
-    is advice, and the failure it prevents is invisible until a different customer's
-    account is queried. A structural rule cannot be ignored by a model having an
-    off day, and it applies equally to whatever model is configured next year.
-
-    Only the tiers that name the value are dropped, leaving the container-scoped
-    ones. If every strategy is self-referential the locator is returned untouched --
-    a bad locator that is *detected and reported* beats a locator we quietly
-    emptied, and `self_referential_locators` will flag it while verification
-    replay proves it.
+    If every strategy is self-referential the locator is left alone -- a bad
+    locator that is detected and reported beats one we quietly emptied.
     """
     observed = (observed or "").strip()
     if not observed:
@@ -246,15 +213,10 @@ def canonicalise_output_locator(locator: Locator, observed: str) -> Locator:
     if not kept:
         return locator
 
-    # A container named by the row's entire text is just as member-specific as a
-    # cell named by its value -- "SAV-4471-00812 SAVINGS 18432.19 1998-04-17 OPEN"
-    # matches exactly one member. Narrow it to the single token that describes what
-    # the row *is* rather than what it currently holds: the longest purely
-    # alphabetic word, which on an accounts table is the account type.
-    #
-    # This is a heuristic and is treated as one. It is safe because it is never the
-    # last line of defence: `--verify-with` replays the result against a different
-    # input, so a wrong guess is caught in seconds rather than in production.
+    # A container named by the row's whole text is just as member-specific as a
+    # cell named by its value. Narrow it to the token describing what the row *is*
+    # rather than what it holds. A heuristic, and safe because `--verify-with`
+    # replays against a different input and catches a wrong guess in seconds.
     narrowed: list[object] = []
     for strategy in kept:
         container = getattr(strategy, "container", None)
@@ -274,8 +236,8 @@ def canonicalise_output_locator(locator: Locator, observed: str) -> Locator:
 def _stable_token(name: str) -> str | None:
     """The longest purely alphabetic word in a row name, e.g. 'SAVINGS'.
 
-    Words containing digits are rejected outright: account numbers, balances and
-    dates are precisely the parts that differ between members.
+    Words with digits are rejected: account numbers, balances and dates are exactly
+    what differs between members.
     """
     words = [w.strip(",:;()") for w in (name or "").split()]
     alphabetic = [w for w in words if w.isalpha() and len(w) >= 4]
@@ -283,17 +245,10 @@ def _stable_token(name: str) -> str | None:
 
 
 def self_referential_locators(result: DiscoveryResult) -> list[str]:
-    """Find output locators that identify a value by the value itself.
+    """Report locators that identify a value by the value itself.
 
-    The failure this catches, observed on a real run: asked to read a savings
-    balance of 18432.19, the model targeted `cell name "18432.19"` and fell back to
-    a row named by the entire row's text -- balance included. That artifact replays
-    perfectly for the member it was recorded on and cannot work for any other.
-
-    It is worth detecting structurally rather than trusting a prompt, because the
-    mistake produces a *passing* discovery run. Nothing about the recording looks
-    wrong until the capability is invoked for someone else, which in production is
-    the first real customer rather than the developer.
+    Worth detecting because the mistake produces a *passing* discovery run --
+    nothing looks wrong until the capability is invoked for someone else.
     """
     problems: list[str] = []
     for action in result.actions:
@@ -319,9 +274,8 @@ def _success_checkpoint(
 ) -> Checkpoint:
     """Assert on the presence of the thing we came for.
 
-    The model supplies prose describing success; the machine-checkable condition is
-    that the first declared output is actually readable. Trusting the prose alone
-    would give an artifact that "succeeds" whenever the model felt good about it.
+    The model supplies prose; the checkable condition is that the first declared
+    output is readable. Prose alone would "succeed" whenever the model felt good.
     """
     description = (
         result.success_condition or "The flow reached its goal."

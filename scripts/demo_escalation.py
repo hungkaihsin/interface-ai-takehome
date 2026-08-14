@@ -1,27 +1,14 @@
-"""Demonstrate escalation and handoff -- requirement 3.6.
+"""Demonstrate escalation and handoff.
 
-The scenario is chosen to be honest rather than convenient. We take the real
-`member_savings_lookup` artifact and remove its knowledge of the maintenance
-interstitial, which simulates the commonest way a capability goes stale in
-production: it was recorded before anyone had ever seen that screen.
+Takes the real capability and removes its knowledge of the maintenance
+interstitial, simulating the commonest way a capability goes stale: it was recorded
+before anyone had seen that screen.
 
-Replay then behaves exactly as it should. It walks the flow, lands on a screen it
-cannot classify, declines to guess, and asks for a person. The person acknowledges
-the notice *in the same browser session*, hands control back, and the run completes
-and returns its declared output.
+Two endings, because "a human was asked" has two honest ones:
+  A  the human resolves it       -> SUCCESS, escalated=True
+  B  the human cannot resolve it -> FAILURE, escalated=True  (member 50001)
 
-Two operator consoles are exercised, because "a human was asked" has two honest
-endings:
-
-  scenario A  the human resolves it       -> run completes, SUCCESS, escalated=True
-  scenario B  the human cannot resolve it -> run ends FAILURE, escalated=True
-
-Scenario B uses member 50001, whose core-banking link is down. No amount of
-clicking fixes that, and a system that pretends otherwise is worse than one that
-reports it.
-
-Run:  .venv/bin/python -m scripts.demo_escalation
-      .venv/bin/python -m scripts.demo_escalation --headed   (real human takeover)
+    python -m scripts.demo_escalation [--headed]
 """
 
 from __future__ import annotations

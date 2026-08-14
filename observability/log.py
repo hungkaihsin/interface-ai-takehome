@@ -1,18 +1,11 @@
-"""Structured run logging -- requirement 3.5.
+"""Structured run logging: one JSONL file per run, one event per line.
 
-One JSONL file per run. Each line is one event with a timestamp, a type, and a
-payload. JSONL rather than prose because the log is meant to be *queried* ("show
-me every run of this capability that hit PERMISSION_DENIED last week"), and prose
-logs answer that question only by grep and luck.
+JSONL because the log is meant to be queried ("every run that hit
+PERMISSION_DENIED last week"), which prose answers only by grep and luck.
 
-Every value written passes through the run's `Redactor` first. That is the whole
-reason the writer owns redaction rather than the caller: there is exactly one
-function in the system through which log data becomes durable, so there is exactly
-one place to get this right.
-
-The run id is generated once and shared by the log file, any screenshots, and the
-returned result, so a caller holding a result can find its evidence without a
-search.
+Every value passes through the run's Redactor here -- this is the single point
+where log data becomes durable. The run id is shared by the log, its screenshots
+and the returned result.
 """
 
 from __future__ import annotations

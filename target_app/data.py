@@ -1,15 +1,10 @@
-"""Synthetic member records for the mock back-office app.
+"""Synthetic member records.
 
-Every value here is fabricated. The SSNs are deliberately drawn from the 900-xx-xxxx
-range, which the SSA has never issued, so nothing in this file can collide with a
-real person's identifier. They exist so the redaction layer has something realistic
-to bite on -- a system that only ever sees clean data cannot demonstrate that it
-protects dirty data.
+Every value is fabricated. SSNs use the 900-xx-xxxx range, which the SSA has never
+issued, so nothing here can collide with a real person. They exist so redaction has
+something realistic to strip.
 
-Member IDs double as the fault-injection switchboard; see faults.py. Choosing IDs
-as the trigger (rather than a separate chaos endpoint) keeps the hostile behaviour
-reachable through the normal UI, which is how these conditions actually surface in
-a bank back-office: the operator types an ID and the app misbehaves.
+Member IDs double as the fault switchboard -- see faults.py.
 """
 
 from __future__ import annotations
