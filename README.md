@@ -57,7 +57,46 @@ cheap, fast, run constantly. This repo is that split applied to driving a UI.
 
 ## Setup
 
-Requires **Python 3.11+**. Everything runs locally; nothing touches a real service.
+Everything runs locally; nothing touches a real service. Two ways in.
+
+### Option A — Docker (nothing to install but Docker)
+
+```bash
+git clone <this-repo> && cd interface-ai-takehome
+docker compose run --rm app
+```
+
+That builds the image, starts the legacy back-office app inside the container,
+runs the full replay tour, runs the escalation demo, and runs the tests. First
+build takes a few minutes (it downloads Chromium); after that it is cached.
+
+To browse the legacy console yourself while it runs:
+
+```bash
+docker compose up app          # publishes http://localhost:5001
+```
+
+Sign in with `operator` / `letmein`. Other entry points:
+
+```bash
+docker compose run --rm app replay --all      # just the replay tour
+docker compose run --rm app escalation        # just the human-takeover demo
+docker compose run --rm app test              # just the tests
+docker compose run --rm app serve             # just the legacy app, foreground
+docker compose run --rm -e GOOGLE_API_KEY=... app discovery
+```
+
+`evidence/` and `artifacts/` are bind-mounted, so runs inside the container leave
+their logs in your working copy where you can read them.
+
+> **One thing Docker cannot do here:** `demo_escalation --headed` hands a real
+> browser window to a human, and a container has no display. Everything else works
+> identically; for a genuine hands-on takeover use Option B. This is why the
+> container is a convenience rather than the only supported path.
+
+### Option B — local virtualenv
+
+Requires **Python 3.11+**.
 
 ```bash
 git clone <this-repo> && cd interface-ai-takehome
@@ -78,6 +117,10 @@ cp .env.example .env
 | `GOOGLE_API_KEY` | **discovery only** | Free key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
 | `TARGET_APP_USER` / `TARGET_APP_PASSWORD` | optional | Defaults to the mock app's published test login |
 
+Under Docker, pass the key through with `-e GOOGLE_API_KEY=...` or put it in a
+`.env` file beside `docker-compose.yml` — compose reads it automatically, and
+`.env` is gitignored.
+
 **Replay needs no key at all.** That is a design property, not a convenience — see
 [Running without live services](#running-without-live-services).
 
@@ -94,6 +137,9 @@ cp .env.example .env
 ---
 
 ## Demo path (the exact commands)
+
+> Running via Docker? The whole of this section is `docker compose run --rm app`.
+> The commands below are the local-virtualenv equivalents.
 
 **Terminal 1 — start the target application.** Leave it running.
 
@@ -328,6 +374,7 @@ scripts/         the demo entry points
 artifacts/       saved capabilities (hand-authored reference + discovered draft)
 evidence/        run logs and failure screenshots
 tests/           schema guardrails, redaction, recorder defences
+docker/          container entrypoint
 docs/            the assignment brief + a step-by-step testing guide
 ```
 

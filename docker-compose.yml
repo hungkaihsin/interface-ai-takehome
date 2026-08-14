@@ -1,0 +1,22 @@
+# Convenience wrapper. Everything here is also reachable with plain `docker run`.
+#
+#   docker compose run --rm app              full demo: replay, escalation, tests
+#   docker compose up app                    same, with :5001 published
+#   docker compose run --rm app replay --all just the replay tour
+#   docker compose run --rm app serve        just the legacy app, to browse by hand
+#   docker compose run --rm -e GOOGLE_API_KEY=... app discovery
+services:
+  app:
+    build: .
+    image: interface-ai-takehome
+    ports:
+      - "5001:5001"
+    environment:
+      # Discovery only. Replay never reads this -- that is the design claim, and
+      # leaving it empty is the easiest way to check it.
+      GOOGLE_API_KEY: "${GOOGLE_API_KEY:-}"
+    volumes:
+      # Evidence written inside the container lands in your working copy, so runs
+      # are inspectable after the container exits.
+      - ./evidence:/app/evidence
+      - ./artifacts:/app/artifacts

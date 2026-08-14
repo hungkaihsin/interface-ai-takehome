@@ -46,6 +46,11 @@ python3 -m venv .venv
 
 ---
 
+> **Using Docker?** Steps 1, 4, 6 and 7 collapse into one command:
+> `docker compose run --rm app`. Step 2 needs `docker compose up app` so you can
+> reach http://localhost:5001 in your own browser, and the hands-on takeover at the
+> end of step 6 needs the local virtualenv, because a container has no display.
+
 ## Step 1 — Start the target application
 
 This is the fake bank system. It must be running for almost everything else.

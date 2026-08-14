@@ -17,6 +17,8 @@ The load-bearing seam is `surface/base.py`. Everything above it addresses contro
 
 **Trade-offs.** *Single process, synchronous* — no queues, which the brief says aren't rewarded, and it buys a real property: the human-handoff control model needs no locking because the automation is blocked inside a call for exactly as long as a human holds the session. *Playwright over Gemini's computer-use model* — that model perceives screenshots and returns pixel coordinates, and coordinates cannot survive into a replayable artifact; driving the accessibility tree means the model's chosen action is already in the artifact's vocabulary, so recording is a projection rather than a translation. *Gemini 2.5 Flash* — chosen for prior production experience with its failure modes and a free tier that keeps the unstubbable requirement ungated; the cost is looser tool-calling, so the loop is built defensively.
 
+*Docker is packaging, not infrastructure.* One image, no orchestration — so the whole thing runs without a Python or Playwright install. The target app stays in that same container rather than becoming a second service: artifacts bind to a concrete entry URL and carry an origin allowlist, so splitting it would mean rewriting every stored artifact to point at a container hostname — the per-deployment rebuild this design exists to avoid. A container has no display, so the headed escalation demo stays a local path and says so.
+
 ## Artifact schema
 
 `capability/schema.py`. Four shaping decisions:
