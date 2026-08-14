@@ -164,9 +164,9 @@
     "approved_for_unattended": false
   },
   "provenance": {
-    "discovered_at": "2026-08-13T13:02:49.828742Z",
+    "discovered_at": "2026-08-14T06:01:13.050625Z",
     "model": "gemini-2.5-flash-lite",
-    "discovery_run_id": "discovery-20260813T130244Z-639211",
+    "discovery_run_id": "discovery-20260814T060106Z-050de2",
     "llm_turns": 4,
     "notes": "DRAFT recorded by an LLM discovery run. Before unattended use a reviewer must (1) classify any irreversible steps as risky, (2) declare the business outcomes this flow can legitimately return, and (3) set approved_for_unattended."
   },

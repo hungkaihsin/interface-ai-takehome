@@ -33,6 +33,7 @@ the calls that actually succeeded, so a bad turn never reaches the artifact.
 from __future__ import annotations
 
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -65,6 +66,36 @@ MAX_WALL_SECONDS = 600
 #: per-minute window is short, so a few doubling waits clear it.
 RETRY_ATTEMPTS = 5
 RETRY_BASE_SECONDS = 8
+
+
+class QuotaExhausted(RuntimeError):
+    """The model's quota is spent for the period; waiting will not help.
+
+    Separate from a rate limit on purpose. Both arrive as HTTP 429, but a
+    per-minute cap clears in seconds while a per-day cap clears at midnight, and
+    conflating them means backing off for minutes against something that cannot
+    move. The same distinction the result contract draws between a recoverable
+    condition and a hard failure -- applied to our own dependency.
+    """
+
+
+def classify_provider_error(message: str) -> tuple[str, int | None]:
+    """Sort a provider error into rate_limited / quota_exhausted / other.
+
+    Returns the class and, for rate limits, the provider's own suggested wait in
+    seconds when it supplied one.
+    """
+    if "PerDay" in message:
+        return "quota_exhausted", None
+
+    if any(
+        marker in message
+        for marker in ("429", "RESOURCE_EXHAUSTED", "503", "UNAVAILABLE", "500")
+    ):
+        match = re.search(r"retryDelay\D{0,6}(\d+)s", message)
+        return "rate_limited", int(match.group(1)) if match else 0
+
+    return "other", None
 
 
 @dataclass
@@ -272,13 +303,17 @@ class DiscoveryAgent:
         """
         delay = RETRY_BASE_SECONDS
         for attempt in range(RETRY_ATTEMPTS):
-            call, transient = self._attempt_call(history, log, turn, attempt)
-            if not transient:
+            call, retry_after = self._attempt_call(history, log, turn, attempt)
+            if retry_after is None:
                 return call
-            log.event("model.rate_limited", turn=turn, attempt=attempt, sleeping=delay)
+            # The provider usually tells us how long to wait. Preferring its number
+            # over our guess is the difference between waiting 8 seconds and waiting
+            # two minutes to make the same call.
+            wait = retry_after if retry_after > 0 else delay
+            log.event("model.rate_limited", turn=turn, attempt=attempt, sleeping=wait)
             if self.echo:
-                print(f"  [turn {turn}] rate limited; waiting {delay}s")
-            time.sleep(delay)
+                print(f"  [turn {turn}] rate limited; waiting {wait}s")
+            time.sleep(wait)
             delay *= 2
         return None
 
@@ -306,14 +341,25 @@ class DiscoveryAgent:
             )
         except Exception as exc:  # noqa: BLE001 - a provider hiccup is not a crash
             message = str(exc)
-            transient = any(
-                marker in message
-                for marker in ("429", "RESOURCE_EXHAUSTED", "503", "UNAVAILABLE", "500")
-            )
+            classification, retry_after = classify_provider_error(message)
             log.event(
-                "model.error", turn=turn, transient=transient, error=message[:400]
+                "model.error",
+                turn=turn,
+                classification=classification,
+                retry_after=retry_after,
+                # Kept long enough to preserve the quota metric and limit. The
+                # earlier 400-character cap cut the payload off just before the
+                # part that says *which* quota was exceeded, which is the only
+                # part that tells you what to do about it.
+                error=message[:1200],
             )
-            return None, transient
+            if classification == "quota_exhausted":
+                # A daily quota does not clear by waiting a few seconds, so
+                # retrying is not resilience -- it is four minutes of pretending.
+                # Treated as a hard failure with an actionable message, exactly as
+                # the replay engine treats an unrecoverable application error.
+                raise QuotaExhausted(message) from exc
+            return None, retry_after if classification == "rate_limited" else None
 
         candidates = response.candidates or []
         for candidate in candidates:
@@ -328,13 +374,13 @@ class DiscoveryAgent:
                     )
                     if self.echo:
                         print(f"  [turn {turn}] {call.name}({dict(call.args or {})})")
-                    return call, False
+                    return call, None
 
         text = (response.text or "").strip() if hasattr(response, "text") else ""
         log.event("model.no_tool_call", turn=turn, text=text[:400])
         if self.echo:
             print(f"  [turn {turn}] (no tool call) {text[:120]}")
-        return None, False
+        return None, None
 
     # -- execution ---------------------------------------------------------
 

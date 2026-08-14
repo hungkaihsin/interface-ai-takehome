@@ -133,3 +133,42 @@ def test_clean_run_reports_no_problems() -> None:
     result = DiscoveryResult(goal="g", succeeded=True, run_id="r", turns=1)
     result.actions = [_read_action("Current Balance", "SAVINGS", "18432.19")]
     assert self_referential_locators(result) == []
+
+
+# -- provider error classification ----------------------------------------
+#
+# Both arrive as HTTP 429, and treating them the same means backing off for
+# minutes against a quota that only resets at midnight. Observed for real: the
+# free tier allows 20 gemini-2.5-flash requests PER DAY, and the loop spent four
+# minutes retrying it before giving up.
+
+
+def test_per_day_quota_is_a_hard_failure_not_a_retry() -> None:
+    from discovery.agent import classify_provider_error
+
+    message = (
+        "429 RESOURCE_EXHAUSTED. quotaId: "
+        "'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaValue': '20'"
+    )
+    assert classify_provider_error(message) == ("quota_exhausted", None)
+
+
+def test_per_minute_rate_limit_uses_the_providers_own_delay() -> None:
+    """The API tells us how long to wait; guessing is strictly worse."""
+    from discovery.agent import classify_provider_error
+
+    kind, wait = classify_provider_error("429 RESOURCE_EXHAUSTED 'retryDelay': '8s'")
+    assert kind == "rate_limited"
+    assert wait == 8
+
+
+def test_rate_limit_without_a_delay_falls_back_to_backoff() -> None:
+    from discovery.agent import classify_provider_error
+
+    assert classify_provider_error("503 UNAVAILABLE") == ("rate_limited", 0)
+
+
+def test_ordinary_errors_are_not_treated_as_rate_limits() -> None:
+    from discovery.agent import classify_provider_error
+
+    assert classify_provider_error("400 INVALID_ARGUMENT")[0] == "other"

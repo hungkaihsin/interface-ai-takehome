@@ -81,10 +81,15 @@ cp .env.example .env
 **Replay needs no key at all.** That is a design property, not a convenience — see
 [Running without live services](#running-without-live-services).
 
-> Free-tier note: discovery is a handful of calls, but the daily quota is small. If
-> you hit `429 RESOURCE_EXHAUSTED`, the loop backs off and retries automatically;
-> if the daily quota is gone, pass `--model gemini-2.5-flash-lite` (separate quota)
-> or just read the recorded run in `/evidence/`.
+> **Free-tier quotas are small and per-model.** Measured: `gemini-2.5-flash` allows
+> **20 requests per day**, and one discovery run costs 4–6. The loop distinguishes
+> the two kinds of 429 — a per-minute limit is retried using the delay the API
+> itself supplies, while a per-day quota fails immediately with advice, because no
+> amount of backoff clears something that resets at midnight.
+>
+> If you hit the daily cap, pass **`--model gemini-2.5-flash-lite`** (its own
+> quota), or skip discovery entirely: a recorded run is in `/evidence/` and replay
+> never needs a key.
 
 ---
 

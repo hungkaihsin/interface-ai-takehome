@@ -296,6 +296,11 @@ way, and asserts the refusal.
 
 The one part that costs money and can't be faked.
 
+**Quota first.** Free-tier limits are per-model and small — `gemini-2.5-flash` is
+**20 requests per day**, and one run costs 4–6. Seeing `rate limited; waiting 8s`
+once or twice between successful turns is a per-*minute* limit and is fine. Seeing
+the daily-quota message means switching model, not waiting.
+
 **Run**
 
 ```bash
@@ -342,7 +347,8 @@ a human classifies risk and approves.
 | Symptom | Cause | Do this |
 |---|---|---|
 | `GOOGLE_API_KEY is not set` | no key | `cp .env.example .env`, add a free key from aistudio.google.com/apikey |
-| `429 RESOURCE_EXHAUSTED` repeatedly | free-tier daily quota spent | add `--model gemini-2.5-flash-lite` (separate quota), or wait for reset |
+| `The free-tier DAILY quota ... is spent` | `gemini-2.5-flash` allows only **20 requests/day** | add `--model gemini-2.5-flash-lite` — it has its own quota. The run fails in ~2s and tells you this |
+| `rate limited; waiting 8s` a few times, then it continues | per-**minute** limit, using the delay the API supplied | nothing — this is working correctly |
 | `VERDICT: does NOT generalise` | the model overfitted a locator | **This is the system working.** See below |
 
 ### If verification fails, that's a feature

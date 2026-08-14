@@ -21,7 +21,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from capability.schema import ParamSpec, SurfaceBinding
-from discovery.agent import DiscoveryAgent
+from discovery.agent import DiscoveryAgent, QuotaExhausted
 from discovery.recorder import save, self_referential_locators, to_artifact
 from surface.session import MeridianSessionProvider
 from surface.web import WebSurface
@@ -82,7 +82,24 @@ def main() -> int:
             model=args.model,
         )
         print(f"\ngoal: {args.goal}\n")
-        result = agent.discover(goal=args.goal, entry_url=args.entry)
+        try:
+            result = agent.discover(goal=args.goal, entry_url=args.entry)
+        except QuotaExhausted:
+            # Actionable rather than cryptic: a daily quota is not something the
+            # user can wait out in this session, so say what to do instead.
+            print(
+                f"\n  The free-tier DAILY quota for {args.model!r} is spent.\n"
+                "  Backing off will not help -- daily quotas reset at midnight "
+                "Pacific.\n\n"
+                "  Options:\n"
+                "    1. Re-run with a model that has its own quota:\n"
+                "         --model gemini-2.5-flash-lite\n"
+                "    2. Wait for the reset.\n"
+                "    3. Skip discovery entirely -- a recorded run is already in\n"
+                "       evidence/, and replay never needs a key:\n"
+                "         .venv/bin/python -m scripts.demo_replay --all\n"
+            )
+            return 2
 
         print(f"\n  succeeded  : {result.succeeded}")
         print(f"  turns      : {result.turns}")
