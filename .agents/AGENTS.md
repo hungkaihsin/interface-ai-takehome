@@ -1,1 +1,0 @@
-/Users/danielhung/Desktop/02. Projects/interface-ai-takehome/CLAUDE.md

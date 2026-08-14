@@ -10,3 +10,6 @@ venv/
 node_modules/
 .pytest_cache/
 # screenshots ARE evidence and are committed deliberately; see evidence/README.md
+
+# Tooling symlink that pointed at a file which is no longer part of the repo.
+.agents/
